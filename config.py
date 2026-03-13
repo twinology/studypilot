@@ -24,6 +24,13 @@ EMBEDDING_QUERY_PREFIX = "query: "      # E5 modellen vereisen prefix voor zoeko
 EMBEDDING_PASSAGE_PREFIX = "passage: "  # E5 modellen vereisen prefix voor documenten
 RETRIEVAL_TOP_K = 25    # Maximale recall: meer chunks ophalen, Claude filtert het relevante
 
+# Multimodal / Image settings
+IMAGES_DIR = DOCUMENTS_DIR / "images"
+EXTRACT_IMAGES = True           # Afbeeldingen uit PDF/DOCX extraheren en beschrijven
+IMAGE_MIN_SIZE = 50             # Minimum pixels (breedte/hoogte) — filtert iconen/bullets
+IMAGE_MAX_DIMENSION = 1024      # Maximale dimensie in pixels — resize voor vision API
+MAX_IMAGES_IN_CONTEXT = 3       # Maximaal aantal afbeeldingen meegestuurd per query
+
 # LLM settings
 CLAUDE_MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 4096       # Meer ruimte voor uitgebreide antwoorden met veel context
@@ -58,3 +65,4 @@ ELEVENLABS_EMOTION_SETTINGS = {
 DOCUMENTS_DIR.mkdir(exist_ok=True)
 CHROMA_DB_DIR.mkdir(exist_ok=True)
 CONVERSATIONS_DIR.mkdir(exist_ok=True)
+IMAGES_DIR.mkdir(exist_ok=True)

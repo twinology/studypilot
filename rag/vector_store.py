@@ -65,8 +65,15 @@ def _get_collection() -> chromadb.Collection:
     return _collection
 
 
-def add_document(chunks: List[str], doc_name: str) -> int:
-    """Add document chunks to the vector store in batches. Returns number of chunks added."""
+def add_document(chunks: List[str], doc_name: str, extra_metadatas: List[dict] = None) -> int:
+    """Add document chunks to the vector store in batches. Returns number of chunks added.
+
+    Args:
+        chunks: List of text chunks to embed and store.
+        doc_name: Document filename for metadata.
+        extra_metadatas: Optional list of extra metadata dicts (one per chunk) to merge
+                         with the default metadata. Used for image descriptions etc.
+    """
     collection = _get_collection()
     total = len(chunks)
 
@@ -75,7 +82,12 @@ def add_document(chunks: List[str], doc_name: str) -> int:
         end = min(start + ADD_BATCH_SIZE, total)
         batch_chunks = chunks[start:end]
         batch_ids = [f"{doc_name}_{i}_{uuid.uuid4().hex[:8]}" for i in range(start, end)]
-        batch_meta = [{"source": doc_name, "chunk_index": i} for i in range(start, end)]
+        batch_meta = []
+        for i in range(start, end):
+            meta = {"source": doc_name, "chunk_index": i}
+            if extra_metadatas and i < len(extra_metadatas) and extra_metadatas[i]:
+                meta.update(extra_metadatas[i])
+            batch_meta.append(meta)
 
         # Compute embeddings with passage prefix
         batch_embeddings = _encode_passages(batch_chunks)
@@ -110,6 +122,7 @@ def search(query: str, top_k: int = RETRIEVAL_TOP_K) -> List[dict]:
         items.append({
             "text": results["documents"][0][i],
             "source": results["metadatas"][0][i]["source"],
+            "metadata": results["metadatas"][0][i],  # full metadata (content_type, image_path, etc.)
             "score": 1 - results["distances"][0][i],  # cosine similarity
         })
     return items

@@ -4,6 +4,7 @@ Supports Anthropic (Claude) and OpenAI (ChatGPT) via a unified interface.
 Settings are stored in settings.json and fall back to .env values.
 """
 
+import base64
 import json
 import logging
 from pathlib import Path
@@ -92,7 +93,8 @@ def create_chat_completion(
         full_messages = []
         if system:
             full_messages.append({"role": "system", "content": system})
-        full_messages.extend(messages)
+        # Normalize image content blocks for OpenAI format
+        full_messages.extend(_normalize_messages_for_openai(messages))
         response = client.chat.completions.create(
             model=model,
             max_tokens=max_tokens,
@@ -103,8 +105,145 @@ def create_chat_completion(
     else:  # anthropic (default)
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
-        kwargs = dict(model=model, max_tokens=max_tokens, messages=messages)
+        # Normalize image content blocks for Anthropic format
+        normalized = _normalize_messages_for_anthropic(messages)
+        kwargs = dict(model=model, max_tokens=max_tokens, messages=normalized)
         if system:
             kwargs["system"] = system
         response = client.messages.create(**kwargs)
+        return response.content[0].text
+
+
+# ── Multimodal helpers ────────────────────────────────────────────────
+
+
+def _normalize_messages_for_anthropic(messages: list) -> list:
+    """Ensure image content blocks use Anthropic format.
+
+    Converts OpenAI-style image_url blocks to Anthropic image blocks if needed.
+    Plain string content passes through unchanged.
+    """
+    result = []
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            result.append(msg)
+            continue
+        if isinstance(content, list):
+            new_content = []
+            for block in content:
+                if block.get("type") == "image_url":
+                    # Convert OpenAI format → Anthropic format
+                    url = block["image_url"]["url"]
+                    if url.startswith("data:"):
+                        # data:image/png;base64,XXXX
+                        header, b64_data = url.split(",", 1)
+                        media_type = header.split(":")[1].split(";")[0]
+                        new_content.append({
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": media_type, "data": b64_data},
+                        })
+                    else:
+                        new_content.append({
+                            "type": "image",
+                            "source": {"type": "url", "url": url},
+                        })
+                else:
+                    new_content.append(block)
+            result.append({**msg, "content": new_content})
+        else:
+            result.append(msg)
+    return result
+
+
+def _normalize_messages_for_openai(messages: list) -> list:
+    """Ensure image content blocks use OpenAI format.
+
+    Converts Anthropic-style image blocks to OpenAI image_url blocks if needed.
+    Plain string content passes through unchanged.
+    """
+    result = []
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            result.append(msg)
+            continue
+        if isinstance(content, list):
+            new_content = []
+            for block in content:
+                if block.get("type") == "image" and "source" in block:
+                    src = block["source"]
+                    if src.get("type") == "base64":
+                        data_uri = f"data:{src['media_type']};base64,{src['data']}"
+                        new_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": data_uri},
+                        })
+                    elif src.get("type") == "url":
+                        new_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": src["url"]},
+                        })
+                    else:
+                        new_content.append(block)
+                else:
+                    new_content.append(block)
+            result.append({**msg, "content": new_content})
+        else:
+            result.append(msg)
+    return result
+
+
+def create_vision_completion(
+    prompt: str,
+    image_bytes: bytes,
+    mime_type: str = "image/png",
+    max_tokens: int = 512,
+) -> str:
+    """Send an image to the vision API and return the text description.
+
+    Works with both Anthropic (Claude) and OpenAI (GPT-4o) vision.
+    """
+    settings = load_settings()
+    provider = settings.get("provider", "anthropic")
+    model = settings.get("model", _DEFAULTS["model"])
+    api_key = settings.get("ai_api_key", "")
+
+    if not api_key:
+        raise RuntimeError("Geen AI API-key geconfigureerd.")
+
+    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+
+    if provider == "openai":
+        import openai
+        client = openai.OpenAI(api_key=api_key)
+        # OpenAI vision uses gpt-4o models; fall back if model doesn't support vision
+        vision_model = model if "gpt-4" in model else "gpt-4o"
+        response = client.chat.completions.create(
+            model=vision_model,
+            max_tokens=max_tokens,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_data}"}},
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        )
+        return response.choices[0].message.content
+
+    else:  # anthropic
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64_data}},
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        )
         return response.content[0].text

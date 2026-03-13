@@ -11,6 +11,8 @@ sentence-transformers>=3.0.0
 
 # Document parsing
 PyPDF2>=3.0.0
+PyMuPDF>=1.24.0
+Pillow>=10.0.0
 python-docx>=1.1.0
 markdown>=3.7
 beautifulsoup4>=4.12.0

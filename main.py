@@ -253,10 +253,27 @@ async def upload_document(file: UploadFile = File(...)):
         chunks = chunk_text(text)
         num_chunks = add_document(chunks, file.filename)
         logger.info(f"Document geupload: {file.filename} ({len(text)} tekens, {num_chunks} chunks)")
+
+        # Multimodal: extract and describe images
+        num_image_chunks = 0
+        if config.EXTRACT_IMAGES and suffix in (".pdf", ".docx", ".doc"):
+            try:
+                from rag.image_extractor import extract_document_images
+                from rag.image_describer import describe_images
+                images = extract_document_images(dest, file.filename)
+                if images:
+                    image_chunks, image_metas = describe_images(images, file.filename)
+                    if image_chunks:
+                        num_image_chunks = add_document(image_chunks, file.filename, extra_metadatas=image_metas)
+                        logger.info(f"Afbeeldingen verwerkt: {len(images)} gevonden, {num_image_chunks} chunks")
+            except Exception as e:
+                logger.warning(f"Image extractie fout (document toch verwerkt): {e}")
+
         return {
             "status": "ok",
             "filename": file.filename,
             "chunks": num_chunks,
+            "image_chunks": num_image_chunks,
             "characters": len(text),
         }
     except ValueError as e:
@@ -283,6 +300,10 @@ async def remove_document(doc_name: str):
     file_path = config.DOCUMENTS_DIR / doc_name
     if file_path.exists():
         os.remove(file_path)
+    # Clean up extracted images
+    image_dir = config.IMAGES_DIR / Path(doc_name).stem
+    if image_dir.exists():
+        shutil.rmtree(image_dir)
     return {"status": "ok", "chunks_deleted": deleted}
 
 
@@ -304,6 +325,11 @@ def _reindex_sync():
     # Reset the vector store (delete old embeddings)
     reset_collection()
 
+    # Clean up old images
+    if config.IMAGES_DIR.exists():
+        shutil.rmtree(config.IMAGES_DIR)
+        config.IMAGES_DIR.mkdir(exist_ok=True)
+
     results = []
     total_chunks = 0
     for file_path in files:
@@ -315,6 +341,21 @@ def _reindex_sync():
                 total_chunks += num_chunks
                 results.append({"name": file_path.name, "chunks": num_chunks, "status": "ok"})
                 logger.info(f"Herindexering: {file_path.name} → {num_chunks} chunks")
+
+                # Multimodal: extract and describe images
+                if config.EXTRACT_IMAGES and file_path.suffix.lower() in (".pdf", ".docx", ".doc"):
+                    try:
+                        from rag.image_extractor import extract_document_images
+                        from rag.image_describer import describe_images
+                        images = extract_document_images(file_path, file_path.name)
+                        if images:
+                            img_chunks, img_metas = describe_images(images, file_path.name)
+                            if img_chunks:
+                                add_document(img_chunks, file_path.name, extra_metadatas=img_metas)
+                                total_chunks += len(img_chunks)
+                                logger.info(f"Herindexering afbeeldingen: {file_path.name} → {len(img_chunks)} image chunks")
+                    except Exception as e:
+                        logger.warning(f"Image extractie fout bij herindexering ({file_path.name}): {e}")
             else:
                 results.append({"name": file_path.name, "chunks": 0, "status": "leeg"})
         except Exception as e:
@@ -881,6 +922,8 @@ async def serve_web():
 
 # Serve static files (images, etc.) from web/ directory
 app.mount("/images", StaticFiles(directory=str(config.BASE_DIR / "web" / "images")), name="images")
+# Serve extracted document images for multimodal RAG
+app.mount("/api/images", StaticFiles(directory=str(config.IMAGES_DIR)), name="doc_images")
 
 
 if __name__ == "__main__":

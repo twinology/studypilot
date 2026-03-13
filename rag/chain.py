@@ -1,10 +1,16 @@
 """RAG chain: retrieve context and generate answers via AI provider."""
 
+import base64
+import logging
+from pathlib import Path
 from typing import List
 
+import config
 from config import MAX_TOKENS
 from ai_provider import create_chat_completion
 from rag.vector_store import search
+
+logger = logging.getLogger("tutor")
 
 SYSTEM_PROMPT = """Je bent een deskundige AI-tutor.
 Je helpt studenten om onderwerpen te begrijpen en toe te passen.
@@ -66,22 +72,51 @@ def rag_query(
     Returns {answer, sources, usage}."""
 
     context_items = []
+    image_paths = []
 
     if use_rag:
         context_items = search(user_message)
+
+        # Separate text chunks from image description chunks
+        text_items = []
+        image_items = []
+        for item in context_items:
+            meta = item.get("metadata", {})
+            if meta.get("content_type") == "image_description":
+                image_items.append(item)
+            else:
+                text_items.append(item)
+
+        # Build text context (unchanged behavior)
         context_text = "\n\n---\n\n".join(
-            f"[Bron: {item['source']}]\n{item['text']}" for item in context_items
+            f"[Bron: {item['source']}]\n{item['text']}" for item in text_items
         )
+
+        # Add image descriptions to text context
+        if image_items:
+            image_context = "\n\n---\n\n".join(
+                f"[Bron: {item['source']} — afbeelding]\n{item['text']}" for item in image_items
+            )
+            if context_text:
+                context_text += "\n\n---\n\n" + image_context
+            else:
+                context_text = image_context
+
         system = SYSTEM_PROMPT
         if context_text:
             system += f"\n\n## Relevante context uit de kennisbank:\n\n{context_text}"
     else:
         system = DIRECT_SYSTEM_PROMPT
+        image_items = []
 
+    # Build messages — potentially with multimodal content blocks
     messages = []
     if chat_history:
         messages.extend(chat_history)
-    messages.append({"role": "user", "content": user_message})
+
+    # Build user message with optional inline images
+    user_content = _build_multimodal_user_content(user_message, image_items)
+    messages.append({"role": "user", "content": user_content})
 
     try:
         answer = create_chat_completion(
@@ -103,10 +138,71 @@ def rag_query(
 
     sources = list(set(item["source"] for item in context_items))
 
+    # Collect image paths for frontend display
+    for item in image_items[:config.MAX_IMAGES_IN_CONTEXT]:
+        meta = item.get("metadata", {})
+        img_path = meta.get("image_path", "")
+        if img_path:
+            image_paths.append(img_path)
+
     usage = {
         "input_tokens": "?",
         "output_tokens": "?",
         "context_chunks": len(context_items),
+        "image_chunks": len(image_items),
     }
 
-    return {"answer": answer, "sources": sources, "usage": usage}
+    return {"answer": answer, "sources": sources, "usage": usage, "images": image_paths}
+
+
+def _build_multimodal_user_content(user_message: str, image_items: list):
+    """Build user message content — plain string or list with image blocks.
+
+    If there are relevant image chunks, includes the actual images as base64
+    content blocks (up to MAX_IMAGES_IN_CONTEXT). Otherwise returns a plain string.
+    """
+    if not image_items:
+        return user_message
+
+    # Limit number of images to avoid token overflow
+    selected = image_items[:config.MAX_IMAGES_IN_CONTEXT]
+
+    content_blocks = [{"type": "text", "text": user_message}]
+
+    for item in selected:
+        meta = item.get("metadata", {})
+        img_rel_path = meta.get("image_path", "")
+        if not img_rel_path:
+            continue
+
+        img_abs_path = config.BASE_DIR / img_rel_path
+        if not img_abs_path.exists():
+            logger.warning(f"Afbeelding niet gevonden voor context: {img_rel_path}")
+            continue
+
+        try:
+            image_bytes = img_abs_path.read_bytes()
+            b64_data = base64.b64encode(image_bytes).decode("utf-8")
+
+            suffix = img_abs_path.suffix.lower()
+            mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+            mime_type = mime_map.get(suffix, "image/png")
+
+            # Use Anthropic format — ai_provider will normalize for OpenAI if needed
+            content_blocks.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": mime_type, "data": b64_data},
+            })
+            content_blocks.append({
+                "type": "text",
+                "text": f"[Bovenstaande afbeelding: {item['text'][:200]}]",
+            })
+        except Exception as e:
+            logger.warning(f"Kon afbeelding niet laden voor context: {img_rel_path}: {e}")
+            continue
+
+    # If no images were actually loaded, return plain string
+    if len(content_blocks) == 1:
+        return user_message
+
+    return content_blocks

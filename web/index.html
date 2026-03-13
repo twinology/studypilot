@@ -780,6 +780,20 @@
         .lock-overlay .lock-icon { font-size: 32px; }
         .lock-overlay a { color: var(--primary); cursor: pointer; text-decoration: underline; }
         .panel { position: relative; }
+
+        /* ── RAG images in messages ──────────── */
+        .message-images {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+        }
+        .rag-image {
+            max-width: 300px; max-height: 250px; border-radius: 8px;
+            border: 1px solid var(--border); cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .rag-image:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
     </style>
 </head>
 <body>
@@ -1132,7 +1146,8 @@
                 const res = await fetch(`${API}/api/upload`, { method: 'POST', body: form });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Upload mislukt');
-                showStatus(`${file.name} verwerkt (${data.chunks} chunks)`, 'success');
+                const imgInfo = data.image_chunks ? `, ${data.image_chunks} afbeelding-chunks` : '';
+                showStatus(`${file.name} verwerkt (${data.chunks} chunks${imgInfo})`, 'success');
             } catch (err) {
                 showStatus(`Fout bij ${file.name}: ${err.message}`, 'error');
             }
@@ -1249,6 +1264,8 @@
                 text += `\n\n📄 Bronnen: ${data.sources.join(', ')}`;
             }
             addMessage(chatMessages, text, 'bot', data.usage);
+            // Show images from multimodal RAG
+            appendImagesToLastMessage(chatMessages, data.images);
         } catch (err) {
             addMessage(chatMessages, `Fout: ${err.message}`, 'bot');
         }
@@ -1327,6 +1344,32 @@
             div.textContent = text;
         }
         container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function appendImagesToLastMessage(container, images) {
+        if (!images || images.length === 0) return;
+        const lastMsg = container.querySelector('.message.bot:last-child');
+        if (!lastMsg) return;
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'message-images';
+        images.forEach(imgPath => {
+            // imgPath is like "documents/images/docname/page1_img1.png"
+            // Serve via /api/images/ which maps to documents/images/
+            const parts = imgPath.replace(/\\/g, '/').split('/');
+            // Remove "documents/images/" prefix to get relative path under IMAGES_DIR
+            const idx = parts.indexOf('images');
+            const relativeParts = idx >= 0 ? parts.slice(idx + 1) : parts;
+            const src = `/api/images/${relativeParts.join('/')}`;
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = 'rag-image';
+            img.alt = 'Afbeelding uit document';
+            img.loading = 'lazy';
+            img.addEventListener('click', () => window.open(img.src, '_blank'));
+            imgContainer.appendChild(img);
+        });
+        lastMsg.appendChild(imgContainer);
         container.scrollTop = container.scrollHeight;
     }
 
