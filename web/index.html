@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyPilot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #f5f5f5;
+            --surface: #ffffff;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #16a34a;
+            --warning: #ea580c;
+            --danger: #dc2626;
+            --chat-user: #dbeafe;
+            --chat-bot: #f1f5f9;
+            --radius: 12px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ─────────────────────────────── */
+        header {
+            background: #3a7c22;
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header-logo {
+            height: 45px;
+            width: 45px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fbe100;
+        }
+        header .subtitle {
+            color: #fbe100;
+            font-size: 13px;
+        }
+        .copyright-footer {
+            text-align: center;
+            padding: 12px 0;
+            font-size: 12px;
+            color: #fbe100;
+            border-top: 1px solid var(--border);
+            background: #3a7c22;
+        }
+        .rag-toggle-wrapper {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-left: 16px;
+            border-left: 1px solid var(--border);
+        }
+        .rag-toggle-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .rag-toggle-label.active { color: var(--text); }
+        .rag-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .rag-badge.on { background: #dcfce7; color: #166534; }
+        .rag-badge.off { background: #fef3c7; color: #92400e; }
+        .rag-model-label {
+            font-size: 11px;
+            color: #000;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .rag-model-hint {
+            font-size: 11px;
+            color: #3a7c22;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+        }
+        .rag-model-hint.visible { opacity: 1; }
+        .rag-model-hint.error { color: var(--danger); }
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            cursor: pointer;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: #cbd5e1;
+            border-radius: 22px;
+            transition: 0.3s;
+        }
+        .toggle-slider::before {
+            content: "";
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        /* ── Tab navigation ─────────────────────── */
+        .tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+        }
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* ── Main content ───────────────────────── */
+        .content {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel { display: none !important; flex: 1; flex-direction: column; overflow: hidden; min-height: 0; }
+        .panel.active { display: flex !important; }
+        .content { min-height: 0; }
+
+        /* ── Documents panel ────────────────────── */
+        .docs-panel { padding: 24px; overflow-y: auto; }
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 24px;
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--primary);
+            background: #eff6ff;
+        }
+        .upload-zone h3 { margin-bottom: 8px; font-size: 16px; }
+        .upload-zone p { color: var(--text-muted); font-size: 13px; }
+        .doc-list { list-style: none; }
+        .doc-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .doc-item .name { font-weight: 500; }
+        .doc-item .size { color: var(--text-muted); font-size: 12px; margin-left: 12px; }
+        .doc-item .delete-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px 8px;
+        }
+
+        /* ── Export / Download ─────────────────────── */
+        .conv-actions {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+        .download-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 6px;
+            transition: color 0.2s;
+        }
+        .download-btn:hover { color: var(--primary); }
+        .export-dropdown {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            z-index: 50;
+            min-width: 120px;
+            overflow: hidden;
+            display: none;
+        }
+        .export-dropdown.open { display: block; }
+        .export-dropdown button {
+            display: block;
+            width: 100%;
+            padding: 8px 14px;
+            text-align: left;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text);
+            transition: background 0.15s;
+        }
+        .export-dropdown button:hover { background: var(--bg); }
+
+        /* ── Chat panel ─────────────────────────── */
+        .chat-panel { flex-direction: column; }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            line-height: 1.5;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .message.user {
+            align-self: flex-end;
+            background: var(--chat-user);
+            border-bottom-right-radius: 4px;
+        }
+        .message.bot {
+            align-self: flex-start;
+            background: var(--chat-bot);
+            border-bottom-left-radius: 4px;
+        }
+        /* ── Rendered markdown in messages ──── */
+        .message.bot { white-space: normal; }
+        .message.bot h1, .message.bot h2, .message.bot h3 {
+            margin: 12px 0 6px 0; line-height: 1.3;
+        }
+        .message.bot h1 { font-size: 17px; }
+        .message.bot h2 { font-size: 15px; }
+        .message.bot h3 { font-size: 14px; }
+        .message.bot p { margin: 6px 0; }
+        .message.bot ul, .message.bot ol {
+            margin: 6px 0; padding-left: 20px;
+        }
+        .message.bot li { margin: 3px 0; }
+        .message.bot strong { font-weight: 700; }
+        .message.bot em { font-style: italic; }
+        .message.bot hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+        .message.bot code {
+            background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px;
+            font-family: 'SF Mono', 'Consolas', monospace; font-size: 13px;
+        }
+        .message.bot pre {
+            background: rgba(0,0,0,0.06); padding: 10px; border-radius: 6px;
+            overflow-x: auto; margin: 8px 0;
+        }
+        .message.bot pre code { background: none; padding: 0; }
+        .context-line {
+            font-style: italic;
+            color: #3a7c22;
+            font-size: 13px;
+            padding: 4px 8px;
+            margin-bottom: 6px;
+            border-left: 3px solid #3a7c22;
+            background: rgba(58, 124, 34, 0.06);
+            border-radius: 0 4px 4px 0;
+        }
+        .message .sources {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .speak-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .speak-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .speak-btn.playing { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .speak-btn .speak-icon { font-size: 14px; }
+        .message .token-usage {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+        }
+        .message .token-usage .tu-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            background: rgba(0,0,0,0.04);
+            padding: 2px 7px;
+            border-radius: 4px;
+        }
+        .message .token-usage .tu-label { opacity: 0.7; }
+        .message .token-usage .tu-value { font-weight: 600; }
+        .input-bar {
+            display: flex;
+            gap: 8px;
+            padding: 16px 24px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+        }
+        .input-bar textarea {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            resize: none;
+            min-height: 40px;
+            max-height: 150px;
+            overflow-y: auto;
+            line-height: 1.4;
+        }
+        .input-bar textarea:focus { border-color: var(--primary); }
+
+        /* ── Buttons ────────────────────────────── */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: var(--border); color: var(--text); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-warning { background: var(--warning); color: #fff; }
+        .btn-sm { padding: 6px 14px; font-size: 13px; }
+
+        /* ── Practice panel ─────────────────────── */
+        .practice-panel { flex-direction: column; }
+
+        .scenario-picker {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .scenario-picker h2 { font-size: 18px; margin-bottom: 16px; }
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .scenario-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scenario-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+        }
+        .scenario-card h3 { font-size: 15px; margin-bottom: 6px; }
+        .scenario-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+        .scenario-card .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-basis { background: #dcfce7; color: #166534; }
+        .badge-gevorderd { background: #fff3e0; color: #e65100; }
+        .badge-expert { background: #fecaca; color: #991b1b; }
+
+        /* ── Difficulty selector ─────────────────── */
+        .difficulty-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .difficulty-option {
+            flex: 1;
+            padding: 16px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .difficulty-option:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .difficulty-option.selected {
+            border-width: 2px;
+        }
+        .difficulty-option .diff-label {
+            font-weight: 700;
+            font-size: 15px;
+            margin-bottom: 6px;
+        }
+        .difficulty-option .diff-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        .diff-basis { border-color: #16a34a; }
+        .diff-basis.selected { background: #f0fdf4; border-color: #16a34a; }
+        .diff-basis .diff-dot { color: #16a34a; }
+        .diff-gevorderd { border-color: #ea580c; }
+        .diff-gevorderd.selected { background: #fff7ed; border-color: #ea580c; }
+        .diff-gevorderd .diff-dot { color: #ea580c; }
+        .diff-expert { border-color: #dc2626; }
+        .diff-expert.selected { background: #fef2f2; border-color: #dc2626; }
+        .diff-expert .diff-dot { color: #dc2626; }
+        .difficulty-option:not(.selected) {
+            border-color: var(--border);
+        }
+
+        .generated-scenario-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .generated-scenario-card h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .generated-scenario-card p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .generated-scenario-card .meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .generate-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .generate-section input {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        /* ── Active session UI ──────────────────── */
+        .session-active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            background: #eff6ff;
+            border-bottom: 1px solid var(--border);
+        }
+        .session-header .scenario-name { font-weight: 600; font-size: 14px; }
+        .session-header .session-controls { display: flex; gap: 8px; }
+        .voice-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+        }
+        .mic-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .mic-btn.inactive { background: var(--border); color: var(--text); }
+        .mic-btn.recording { background: var(--danger); color: #fff; animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+            50% { box-shadow: 0 0 0 12px rgba(220, 38, 38, 0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+        .btn-loading::after {
+            content: '';
+            display: inline-block;
+            width: 14px; height: 14px;
+            margin-left: 8px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+        }
+        .voice-status-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .voice-status {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .tts-provider {
+            font-size: 11px;
+            color: #3a7c22;
+            font-weight: 500;
+        }
+        .tts-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+        /* ── Feedback panel ─────────────────────── */
+        .feedback-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .feedback-overlay.visible { display: flex; }
+        .feedback-content {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 32px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .feedback-content h2 { margin-bottom: 16px; }
+        .feedback-content .close-btn {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        /* ── Loading / Status ───────────────────── */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .status-bar {
+            padding: 8px 24px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .status-bar.error { background: #fef2f2; color: var(--danger); }
+        .status-bar.success { background: #f0fdf4; color: var(--success); }
+        .hidden { display: none !important; }
+
+        /* ── Conversations panel ────────────────── */
+        .conversations-panel { padding: 16px 24px; overflow-y: auto; display: flex; flex-direction: column; }
+        .conv-toolbar {
+            display: flex; gap: 8px; align-items: center;
+            margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .conv-toolbar select, .conv-toolbar button {
+            padding: 6px 12px; border: 1px solid var(--border);
+            border-radius: 6px; font-size: 13px; background: var(--surface); cursor: pointer;
+        }
+        .conv-list { list-style: none; }
+        .conv-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+        }
+        .conv-item:hover { border-color: var(--primary); background: #f8fafc; }
+        .conv-item .conv-info { flex: 1; }
+        .conv-item .conv-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+        .conv-item .conv-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 12px; }
+        .conv-type-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; margin-right: 8px;
+        }
+        .conv-type-chat { background: #dbeafe; color: #1e40af; }
+        .conv-type-session { background: #dcfce7; color: #166534; }
+        .conv-detail-view { display: none; flex-direction: column; flex: 1; min-height: 0; }
+        .conv-detail-view.active { display: flex; }
+        .conv-detail-header {
+            display: flex; align-items: center; gap: 12px;
+            padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+        }
+        .conv-detail-header .back-btn {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            padding: 6px 12px; cursor: pointer; font-size: 13px;
+        }
+        .conv-detail-header .back-btn:hover { background: var(--bg); }
+        .conv-detail-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+        .conv-detail-feedback {
+            margin-top: 16px; padding: 16px; background: #f0fdf4;
+            border: 1px solid #bbf7d0; border-radius: 8px; line-height: 1.6;
+        }
+        .conv-detail-feedback h3 { margin-bottom: 8px; color: #166534; }
+        .conv-empty {
+            text-align: center; padding: 48px 24px; color: var(--text-muted);
+        }
+        .conv-empty h3 { margin-bottom: 8px; font-size: 16px; }
+
+        /* ── Logs panel ────────────────────── */
+        .logs-panel { padding: 16px 24px; overflow-y: auto; }
+        .logs-toolbar {
+            display: flex; gap: 8px; align-items: center;
+            margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .logs-toolbar select, .logs-toolbar button {
+            padding: 6px 12px; border: 1px solid var(--border);
+            border-radius: 6px; font-size: 13px; background: var(--surface);
+        }
+        .logs-toolbar .auto-label { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+        .log-table {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+        .log-table th {
+            text-align: left; padding: 6px 10px; background: var(--surface);
+            border-bottom: 2px solid var(--border); font-size: 11px;
+            color: var(--text-muted); text-transform: uppercase; position: sticky; top: 0;
+        }
+        .log-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .log-table tr:hover { background: #f8fafc; }
+        .log-level { padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .log-level-INFO { background: #dbeafe; color: #1e40af; }
+        .log-level-WARNING { background: #fef3c7; color: #92400e; }
+        .log-level-ERROR { background: #fecaca; color: #991b1b; }
+        .log-level-DEBUG { background: #e5e7eb; color: #374151; }
+        .log-time { color: var(--text-muted); white-space: nowrap; }
+        .log-module { color: var(--primary); white-space: nowrap; }
+
+        /* ── Setup panel ──────────────────────── */
+        .setup-panel { padding: 24px; overflow-y: auto; max-width: 600px; }
+        .setup-panel h2 { font-size: 18px; margin-bottom: 16px; }
+        .setup-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .setup-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+        .setup-field { margin-bottom: 14px; }
+        .setup-field label {
+            display: block; font-size: 13px; font-weight: 500;
+            margin-bottom: 4px; color: var(--text);
+        }
+        .setup-field select, .setup-field input[type="text"], .setup-field input[type="password"] {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 6px; font-size: 14px; font-family: inherit;
+        }
+        .setup-field select:focus, .setup-field input:focus {
+            outline: none; border-color: var(--primary);
+        }
+        .setup-field .field-hint {
+            font-size: 11px; color: var(--text-muted); margin-top: 3px;
+        }
+        .setup-status {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 12px; font-weight: 500; margin-left: 8px;
+        }
+        .setup-status.ok { color: var(--success); }
+        .setup-status.missing { color: var(--danger); }
+        .provider-radios { display: flex; gap: 12px; margin-bottom: 14px; }
+        .provider-radio {
+            flex: 1; padding: 12px 16px; border: 2px solid var(--border);
+            border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.2s;
+        }
+        .provider-radio.selected { border-color: var(--primary); background: #eff6ff; }
+        .provider-radio .provider-name { font-weight: 600; font-size: 14px; }
+        .provider-radio .provider-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── Lockdown ─────────────────────────── */
+        .lockdown-banner {
+            display: none; padding: 12px 24px; background: #fef2f2;
+            border-bottom: 2px solid var(--danger); text-align: center;
+            font-size: 14px; color: var(--danger); font-weight: 500;
+        }
+        .lockdown-banner.visible { display: block; }
+        .lockdown-banner a { color: var(--primary); cursor: pointer; text-decoration: underline; }
+        .lock-overlay {
+            display: none; position: absolute; inset: 0; z-index: 10;
+            background: rgba(255,255,255,0.85); align-items: center; justify-content: center;
+            flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-muted);
+        }
+        .lock-overlay.visible { display: flex; }
+        .lock-overlay .lock-icon { font-size: 32px; }
+        .lock-overlay a { color: var(--primary); cursor: pointer; text-decoration: underline; }
+        .panel { position: relative; }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="/images/logo.png" alt="StudyPilot logo" class="header-logo">
+        <div>
+            <h1>StudyPilot</h1>
+            <span class="subtitle">Minder zoeken, meer oefenen en sneller leren!</span>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <div class="tab active" data-tab="docs">Kennisbank</div>
+        <div class="tab" data-tab="chat">Chat</div>
+        <div class="tab" data-tab="practice">Oefenen</div>
+        <div class="tab" data-tab="conversations">Gesprekken</div>
+        <div class="tab" data-tab="logs">Logs</div>
+        <div class="tab" data-tab="setup">⚙ Setup</div>
+        <div class="rag-toggle-wrapper">
+            <span class="rag-toggle-label active" id="ragLabel">Kennisbank</span>
+            <label class="toggle-switch" title="Kennisbank in-/uitschakelen">
+                <input type="checkbox" id="ragToggle" checked>
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="rag-badge on" id="ragBadge">AAN</span>
+            <span class="rag-model-label">AI model:</span>
+            <span class="rag-model-hint" id="ragModelHint">claude sonnet 4.6</span>
+        </div>
+    </nav>
+
+    <div id="statusBar" class="status-bar hidden"></div>
+    <div id="lockdownBanner" class="lockdown-banner">
+        ⚠️ Geen API-key geconfigureerd. <a onclick="switchToSetup()">Ga naar Setup</a> om je AI-provider en key in te stellen.
+    </div>
+
+    <main class="content">
+        <!-- ── Kennisbank ──────────────────────────── -->
+        <div id="docsPanel" class="panel docs-panel active">
+            <div class="upload-zone" id="uploadZone">
+                <h3>Sleep documenten hierheen</h3>
+                <p>of klik om bestanden te selecteren</p>
+                <p style="margin-top:8px;font-size:12px;">PDF, Word, TXT, Markdown, HTML</p>
+                <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.txt,.md,.html,.htm" style="display:none">
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3>Geüploade documenten</h3>
+                <button class="btn btn-sm" id="reindexBtn" style="background:#8b5cf6;color:#fff;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;border:none" title="Alle documenten opnieuw indexeren met het huidige embedding model">⟳ Herindexeer</button>
+            </div>
+            <ul class="doc-list" id="docList">
+                <li style="color:var(--text-muted);font-size:14px;padding:12px">Nog geen documenten geüpload</li>
+            </ul>
+        </div>
+
+        <!-- ── Chat ────────────────────────────────── -->
+        <div id="chatPanel" class="panel chat-panel">
+            <div id="chatLockOverlay" class="lock-overlay">
+                <span class="lock-icon">🔒</span>
+                <span>Stel eerst een API-key in om te chatten.</span>
+                <a onclick="switchToSetup()">Ga naar Setup</a>
+            </div>
+            <div class="messages" id="chatMessages">
+                <div class="message bot">Hallo! Ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!</div>
+            </div>
+            <div class="input-bar">
+                <textarea id="chatInput" placeholder="Stel een vraag of geef een antwoord ... [ Shift+Enter voor nieuwe regel, Enter om te versturen ]" rows="1" autocomplete="off"></textarea>
+                <button class="btn btn-primary" id="chatSend">Verstuur</button>
+                <button class="btn btn-warning btn-sm" id="chatCloseBtn" title="Chat opslaan en afsluiten">Afsluiten</button>
+            </div>
+        </div>
+
+        <!-- ── Oefenen ─────────────────────────────── -->
+        <div id="practicePanel" class="panel practice-panel">
+            <div id="practiceLockOverlay" class="lock-overlay">
+                <span class="lock-icon">🔒</span>
+                <span>Stel eerst een API-key in om te oefenen.</span>
+                <a onclick="switchToSetup()">Ga naar Setup</a>
+            </div>
+            <!-- Scenario picker (shown when no session active) -->
+            <div id="scenarioPicker" class="scenario-picker">
+                <h2>Genereer een scenario</h2>
+
+                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                    Voer een onderwerp in en kies een moeilijkheidsgraad om een oefenscenario te genereren op basis van je kennisbank of de algemene kennis van het AI-model.
+                </p>
+
+                <div class="generate-section">
+                    <input type="text" id="scenarioTopic" placeholder="Voer een onderwerp in, bijvoorbeeld 'boze klant', 'stakeholderanalyse', 'marketingstrategie'...">
+                    <button class="btn btn-primary btn-sm" id="generateBtn">Genereer scenario</button>
+                </div>
+
+                <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px; display: block;">Moeilijkheidsgraad</label>
+                <div class="difficulty-selector" id="difficultySelector">
+                    <div class="difficulty-option diff-basis selected" data-difficulty="basis">
+                        <div class="diff-label"><span class="diff-dot">&#9679;</span> Basis</div>
+                        <div class="diff-desc">Je hebt weinig of geen ervaring en leert de fundamenten en basisvaardigheden.</div>
+                    </div>
+                    <div class="difficulty-option diff-gevorderd" data-difficulty="gevorderd">
+                        <div class="diff-label"><span class="diff-dot">&#9679;</span> Gevorderd</div>
+                        <div class="diff-desc">Je hebt al ervaring, begrijpt de belangrijkste concepten en kunt zelfstandig werken.</div>
+                    </div>
+                    <div class="difficulty-option diff-expert" data-difficulty="expert">
+                        <div class="diff-label"><span class="diff-dot">&#9679;</span> Expert</div>
+                        <div class="diff-desc">Je hebt diepgaande kennis, veel ervaring en kunt complexe problemen oplossen en anderen begeleiden.</div>
+                    </div>
+                </div>
+
+                <div id="generatedScenarioArea"></div>
+            </div>
+
+            <!-- Active session (shown during practice) -->
+            <div id="sessionUI" class="session-active hidden">
+                <div class="session-header">
+                    <span class="scenario-name" id="sessionScenarioName"></span>
+                    <div class="session-controls">
+                        <button class="btn btn-warning btn-sm" id="endSessionBtn">Stop & Feedback</button>
+                    </div>
+                </div>
+                <div class="messages" id="sessionMessages"></div>
+                <div class="voice-controls">
+                    <button class="mic-btn inactive" id="micBtn" title="Houd ingedrukt om te spreken">&#127908;</button>
+                    <div class="voice-status-wrapper">
+                        <span class="voice-status" id="voiceStatus">Klik op de microfoon of typ hieronder</span>
+                        <span class="tts-provider">&#9835; Spraak via ElevenLabs</span>
+                    </div>
+                    <div class="tts-toggle">
+                        <label><input type="checkbox" id="ttsToggle" checked> Spraak</label>
+                    </div>
+                </div>
+                <div class="input-bar">
+                    <textarea id="sessionInput" placeholder="Typ je antwoord... [ Shift+Enter voor nieuwe regel, Enter om te versturen ]" rows="1" autocomplete="off"></textarea>
+                    <button class="btn btn-primary" id="sessionSend">Verstuur</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Gesprekken ──────────────────────────────── -->
+        <div id="conversationsPanel" class="panel conversations-panel">
+            <!-- List view -->
+            <div id="convListView">
+                <div class="conv-toolbar">
+                    <select id="convTypeFilter">
+                        <option value="">Alle gesprekken</option>
+                        <option value="chat">Chats</option>
+                        <option value="session">Oefensessies</option>
+                    </select>
+                    <button class="btn btn-sm btn-secondary" id="refreshConvs">Vernieuwen</button>
+                    <button class="btn btn-sm btn-primary" id="saveChatBtn">Chat opslaan</button>
+                </div>
+                <ul class="conv-list" id="convList">
+                    <li class="conv-empty">
+                        <h3>Nog geen gesprekken opgeslagen</h3>
+                        <p>Chats en oefensessies worden hier automatisch bewaard.</p>
+                    </li>
+                </ul>
+            </div>
+            <!-- Detail view -->
+            <div id="convDetailView" class="conv-detail-view">
+                <div class="conv-detail-header">
+                    <button class="back-btn" id="convBackBtn">&larr; Terug</button>
+                    <span id="convDetailTitle" style="font-weight:600;font-size:15px;"></span>
+                </div>
+                <div class="conv-detail-messages" id="convDetailMessages"></div>
+                <div id="convDetailFeedback" class="conv-detail-feedback hidden"></div>
+            </div>
+        </div>
+
+        <!-- ── Setup ─────────────────────────────────── -->
+        <div id="setupPanel" class="panel setup-panel">
+            <h2>⚙ Instellingen</h2>
+
+            <div class="setup-section">
+                <h3>AI Provider</h3>
+                <div class="provider-radios" id="providerRadios">
+                    <div class="provider-radio selected" data-provider="anthropic">
+                        <div class="provider-name">Anthropic</div>
+                        <div class="provider-desc">Claude (Sonnet, Haiku, Opus)</div>
+                    </div>
+                    <div class="provider-radio" data-provider="openai">
+                        <div class="provider-name">OpenAI</div>
+                        <div class="provider-desc">GPT-4o, GPT-4, GPT-3.5</div>
+                    </div>
+                </div>
+
+                <div class="setup-field">
+                    <label for="setupModel">Model</label>
+                    <select id="setupModel"></select>
+                    <div class="field-hint">Het AI-model dat gebruikt wordt voor chat, scenarios en feedback.</div>
+                </div>
+
+                <div class="setup-field">
+                    <label for="setupAiKey">
+                        API Key
+                        <span class="setup-status" id="aiKeyStatus"></span>
+                    </label>
+                    <input type="password" id="setupAiKey" placeholder="sk-...">
+                    <div class="field-hint">Je API key van Anthropic of OpenAI. Wordt lokaal opgeslagen in settings.json.</div>
+                </div>
+            </div>
+
+            <div class="setup-section">
+                <h3>ElevenLabs (optioneel)</h3>
+                <div class="setup-field">
+                    <label for="setupElKey">
+                        ElevenLabs API Key
+                        <span class="setup-status" id="elKeyStatus"></span>
+                    </label>
+                    <input type="password" id="setupElKey" placeholder="sk_...">
+                    <div class="field-hint">Optioneel. Zonder key wordt browser-spraak (Web Speech API) gebruikt als fallback.</div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="setupSaveBtn">Opslaan</button>
+            <span id="setupSaveStatus" style="margin-left:12px;font-size:13px;"></span>
+        </div>
+
+        <!-- ── Logs ──────────────────────────────────── -->
+        <div id="logsPanel" class="panel logs-panel">
+            <div class="logs-toolbar">
+                <select id="logLevelFilter">
+                    <option value="">Alle levels</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+                <button class="btn btn-sm btn-secondary" id="refreshLogs">Vernieuwen</button>
+                <a class="btn btn-sm btn-secondary" href="/api/logs/file" download style="text-decoration:none">Download logbestand</a>
+                <label class="auto-label">
+                    <input type="checkbox" id="autoRefreshLogs" checked> Auto-refresh (5s)
+                </label>
+            </div>
+            <div id="logsContainer" style="overflow-y:auto;flex:1;min-height:0;">
+                <table class="log-table">
+                    <thead><tr><th>Tijd</th><th>Level</th><th>Module</th><th>Bericht</th></tr></thead>
+                    <tbody id="logsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Feedback overlay -->
+    <div class="feedback-overlay" id="feedbackOverlay">
+        <div class="feedback-content">
+            <button class="close-btn" id="closeFeedback">&times;</button>
+            <h2>Feedback op je oefensessie</h2>
+            <div id="feedbackText"></div>
+        </div>
+    </div>
+
+    <script>
+    const API = '';
+
+    // ── Tab switching ──────────────────────────────
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab + 'Panel').classList.add('active');
+        });
+    });
+
+    // ── Status bar ─────────────────────────────────
+    function showStatus(msg, type = 'success') {
+        const bar = document.getElementById('statusBar');
+        bar.textContent = msg;
+        bar.className = `status-bar ${type}`;
+        bar.classList.remove('hidden');
+        setTimeout(() => bar.classList.add('hidden'), 4000);
+    }
+
+    // ── RAG toggle ────────────────────────────────
+    const ragToggle = document.getElementById('ragToggle');
+    const ragBadge = document.getElementById('ragBadge');
+    const ragLabel = document.getElementById('ragLabel');
+    const ragModelHint = document.getElementById('ragModelHint');
+
+    function updateRagUI(enabled) {
+        ragToggle.checked = enabled;
+        ragBadge.textContent = enabled ? 'AAN' : 'UIT';
+        ragBadge.className = `rag-badge ${enabled ? 'on' : 'off'}`;
+        ragLabel.className = `rag-toggle-label ${enabled ? 'active' : ''}`;
+        ragModelHint.classList.add('visible');
+    }
+
+    // Check AI model availability (lightweight, no credits used)
+    async function checkModelAvailability() {
+        try {
+            const res = await fetch(`${API}/api/health`);
+            if (!res.ok) throw new Error(res.status);
+            const data = await res.json();
+            if (data.configured === false) {
+                ragModelHint.textContent = 'Geen API-key — zie Setup';
+                ragModelHint.classList.add('error');
+            } else {
+                ragModelHint.textContent = `${data.provider || 'anthropic'}: ${data.model || 'onbekend'}`;
+                ragModelHint.classList.remove('error');
+            }
+        } catch {
+            ragModelHint.textContent = 'AI-model niet beschikbaar!';
+            ragModelHint.classList.add('error');
+        }
+        ragModelHint.classList.add('visible');
+    }
+
+    // Load initial state
+    fetch(`${API}/api/rag-toggle`).then(r => r.json()).then(data => {
+        updateRagUI(data.enabled);
+    }).catch(() => {});
+    checkModelAvailability();
+
+    ragToggle.addEventListener('change', async () => {
+        try {
+            const res = await fetch(`${API}/api/rag-toggle`, { method: 'POST' });
+            const data = await res.json();
+            updateRagUI(data.enabled);
+            showStatus(
+                data.enabled
+                    ? 'Kennisbank ingeschakeld — antwoorden gebaseerd op je documenten'
+                    : 'Kennisbank uitgeschakeld — antwoorden direct van Claude AI',
+                'success'
+            );
+        } catch (err) {
+            // Revert toggle on error
+            ragToggle.checked = !ragToggle.checked;
+            showStatus('Kon kennisbank toggle niet wijzigen', 'error');
+        }
+    });
+
+    // ── Documents ──────────────────────────────────
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+    const docList = document.getElementById('docList');
+
+    uploadZone.addEventListener('click', () => fileInput.click());
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+    async function handleFiles(files) {
+        for (const file of files) {
+            const form = new FormData();
+            form.append('file', file);
+            try {
+                showStatus(`Uploaden: ${file.name}...`, 'success');
+                const res = await fetch(`${API}/api/upload`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Upload mislukt');
+                showStatus(`${file.name} verwerkt (${data.chunks} chunks)`, 'success');
+            } catch (err) {
+                showStatus(`Fout bij ${file.name}: ${err.message}`, 'error');
+            }
+        }
+        loadDocuments();
+    }
+
+    async function loadDocuments() {
+        try {
+            const res = await fetch(`${API}/api/documents`);
+            const data = await res.json();
+            if (data.documents.length === 0) {
+                docList.innerHTML = '<li style="color:var(--text-muted);font-size:14px;padding:12px">Nog geen documenten geüpload</li>';
+                return;
+            }
+            docList.innerHTML = data.documents.map(d => `
+                <li class="doc-item">
+                    <div>
+                        <span class="name">${d.name}</span>
+                        <span class="size">${formatSize(d.size)}</span>
+                    </div>
+                    <button class="delete-btn" onclick="deleteDoc('${d.name}')" title="Verwijderen">&times;</button>
+                </li>
+            `).join('');
+        } catch (err) {
+            console.error('Fout bij laden documenten:', err);
+        }
+    }
+
+    async function deleteDoc(name) {
+        if (!confirm(`Weet je zeker dat je "${name}" wilt verwijderen?`)) return;
+        await fetch(`${API}/api/documents/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        loadDocuments();
+        showStatus(`${name} verwijderd`, 'success');
+    }
+
+    document.getElementById('reindexBtn').addEventListener('click', async () => {
+        if (!confirm('Alle documenten opnieuw indexeren? Dit kan even duren.')) return;
+        const btn = document.getElementById('reindexBtn');
+        btn.disabled = true;
+        btn.textContent = '⟳ Bezig...';
+        try {
+            showStatus('Herindexering gestart...', 'success');
+            const res = await fetch(`${API}/api/reindex`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Herindexering mislukt');
+            showStatus(`Herindexering voltooid: ${data.documents} documenten, ${data.total_chunks} chunks`, 'success');
+        } catch (err) {
+            showStatus(`Herindexering fout: ${err.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '⟳ Herindexeer';
+        }
+    });
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // ── Chat ───────────────────────────────────────
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const chatSend = document.getElementById('chatSend');
+
+    chatSend.addEventListener('click', sendChat);
+    chatInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+    });
+    chatInput.addEventListener('input', autoResize);
+
+    function autoResize() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+    }
+
+    // Afsluiten button: save chat and clear
+    document.getElementById('chatCloseBtn').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${API}/api/chat/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: '', user_id: 'web_user' }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Opslaan mislukt');
+            showStatus(`Chat opgeslagen (${data.message_count} berichten)`, 'success');
+            // Clear chat UI
+            chatMessages.innerHTML = '<div class="message bot">Hallo! Ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!</div>';
+        } catch (err) {
+            showStatus(`${err.message}`, 'error');
+        }
+    });
+
+    async function sendChat() {
+        const msg = chatInput.value.trim();
+        if (!msg) return;
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+        addMessage(chatMessages, msg, 'user');
+        chatSend.disabled = true;
+
+        try {
+            const res = await fetch(`${API}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Fout');
+            let text = data.answer;
+            if (data.sources && data.sources.length > 0) {
+                text += `\n\n📄 Bronnen: ${data.sources.join(', ')}`;
+            }
+            addMessage(chatMessages, text, 'bot', data.usage);
+        } catch (err) {
+            addMessage(chatMessages, `Fout: ${err.message}`, 'bot');
+        }
+        chatSend.disabled = false;
+        chatInput.focus();
+    }
+
+    function addMessage(container, text, type, usage) {
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        if (type === 'bot') {
+            div.innerHTML = markdownToHtml(text);
+
+            // Speak button — only in session (Oefenen), not in Chat
+            if (container === sessionMessages) {
+                const speakBtn = document.createElement('button');
+                speakBtn.className = 'speak-btn';
+                speakBtn.innerHTML = '<span class="speak-icon">&#128264;</span> Afspelen';
+                speakBtn.title = 'Lees dit bericht voor';
+                speakBtn.addEventListener('click', () => {
+                    sharedAudio.pause();
+                    speechSynthesis.cancel();
+                    audioQueue.length = 0;
+                    isPlaying = false;
+
+                    speakBtn.classList.add('playing');
+                    speakBtn.innerHTML = '<span class="speak-icon">&#128266;</span> Bezig...';
+
+                    const checkDone = setInterval(() => {
+                        if (!isPlaying && audioQueue.length === 0) {
+                            clearInterval(checkDone);
+                            speakBtn.classList.remove('playing');
+                            speakBtn.innerHTML = '<span class="speak-icon">&#128264;</span> Afspelen';
+                        }
+                    }, 500);
+
+                    speak(text);
+                });
+                div.appendChild(speakBtn);
+            }
+
+            // Token usage badge
+            if (usage) {
+                const totalTokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+                const costEstimate = (
+                    (usage.input_tokens || 0) * 3 / 1_000_000 +
+                    (usage.output_tokens || 0) * 15 / 1_000_000
+                ).toFixed(4);
+                const usageDiv = document.createElement('div');
+                usageDiv.className = 'token-usage';
+                usageDiv.innerHTML = `
+                    <span class="tu-item" title="Tokens verstuurd naar Claude (context + systeemprompt + chatgeschiedenis)">
+                        <span class="tu-label">In:</span>
+                        <span class="tu-value">${usage.input_tokens?.toLocaleString('nl-NL') || '?'}</span>
+                    </span>
+                    <span class="tu-item" title="Tokens gegenereerd door Claude (het antwoord)">
+                        <span class="tu-label">Uit:</span>
+                        <span class="tu-value">${usage.output_tokens?.toLocaleString('nl-NL') || '?'}</span>
+                    </span>
+                    <span class="tu-item" title="Totaal tokens (in + uit)">
+                        <span class="tu-label">Totaal:</span>
+                        <span class="tu-value">${totalTokens.toLocaleString('nl-NL')}</span>
+                    </span>
+                    <span class="tu-item" title="Aantal contextfragmenten opgehaald uit de kennisbank">
+                        <span class="tu-label">Chunks:</span>
+                        <span class="tu-value">${usage.context_chunks || '?'}</span>
+                    </span>
+                    <span class="tu-item" title="Geschatte kosten (Sonnet: $3/M in, $15/M uit)">
+                        <span class="tu-label">Kosten:</span>
+                        <span class="tu-value">$${costEstimate}</span>
+                    </span>
+                `;
+                div.appendChild(usageDiv);
+            }
+        } else {
+            div.textContent = text;
+        }
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // ── Scenarios ──────────────────────────────────
+    const scenarioPicker = document.getElementById('scenarioPicker');
+    const sessionUI = document.getElementById('sessionUI');
+    let selectedDifficulty = 'basis';
+
+    // Difficulty selector
+    document.querySelectorAll('.difficulty-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            document.querySelectorAll('.difficulty-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            selectedDifficulty = opt.dataset.difficulty;
+        });
+    });
+
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+        const topic = document.getElementById('scenarioTopic').value.trim();
+        if (!topic) {
+            showStatus('Voer een onderwerp in om een scenario te genereren.', 'error');
+            return;
+        }
+        const btn = document.getElementById('generateBtn');
+        btn.disabled = true;
+        btn.textContent = 'Scenario genereren';
+        btn.classList.add('btn-loading');
+        const area = document.getElementById('generatedScenarioArea');
+        area.innerHTML = '<p style="color:var(--text-muted);font-size:14px;padding:16px 0;">⏳ Scenario wordt gegenereerd op basis van je kennisbank... Dit kan enkele seconden duren.</p>';
+        try {
+            const res = await fetch(`${API}/api/scenarios/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic: topic, difficulty: selectedDifficulty }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Genereren mislukt');
+            const s = data.scenario;
+            area.innerHTML = `
+                <div class="generated-scenario-card">
+                    <h3>${s.name}</h3>
+                    <p>${s.description}</p>
+                    <div class="meta">
+                        <span class="badge badge-${s.difficulty}">${s.difficulty}</span>
+                        <span style="margin-left:8px">${s.conversation_style}</span>
+                    </div>
+                    <div class="meta" style="margin-top:4px">
+                        <span style="font-size:12px;color:var(--text-muted)">
+                            ${s.gender === 'male' ? '👨' : '👩'} ${s.gender === 'male' ? 'Man' : 'Vrouw'}
+                            &middot; Emotie: <strong>${s.emotion || 'neutraal'}</strong>
+                        </span>
+                    </div>
+                    <button class="btn btn-primary" id="startGeneratedSession">Start oefensessie</button>
+                </div>
+            `;
+            document.getElementById('startGeneratedSession').addEventListener('click', () => {
+                startSession(s.id);
+            });
+            showStatus('Scenario gegenereerd!', 'success');
+        } catch (err) {
+            area.innerHTML = '';
+            showStatus(`Fout: ${err.message}`, 'error');
+        }
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        btn.textContent = 'Genereer scenario';
+    });
+
+    // ── Practice session ───────────────────────────
+    const sessionMessages = document.getElementById('sessionMessages');
+    const sessionInput = document.getElementById('sessionInput');
+    const sessionSend = document.getElementById('sessionSend');
+
+    async function startSession(scenarioId) {
+        // Show loading state on the start button
+        const startBtn = document.getElementById('startGeneratedSession');
+        if (startBtn) {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Sessie starten';
+            startBtn.classList.add('btn-loading');
+        }
+        try {
+            const res = await fetch(`${API}/api/session/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scenario_id: scenarioId }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Starten mislukt');
+
+            scenarioPicker.classList.add('hidden');
+            sessionUI.classList.remove('hidden');
+            document.getElementById('sessionScenarioName').textContent =
+                `${data.scenario.name} — ${data.scenario.conversation_style}`;
+            sessionMessages.innerHTML = '';
+
+            // Set TTS voice and emotion based on scenario character
+            currentVoice = data.scenario.gender || '';
+            currentEmotion = data.scenario.emotion || '';
+
+            addMessage(sessionMessages, data.opening_message, 'bot');
+
+            // Clear the generated scenario area for next time
+            document.getElementById('generatedScenarioArea').innerHTML = '';
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+            if (startBtn) {
+                startBtn.disabled = false;
+                startBtn.classList.remove('btn-loading');
+                startBtn.textContent = 'Start oefensessie';
+            }
+        }
+    }
+
+    sessionSend.addEventListener('click', sendSessionMessage);
+    sessionInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSessionMessage(); }
+    });
+    sessionInput.addEventListener('input', autoResize);
+
+    async function sendSessionMessage() {
+        const msg = sessionInput.value.trim();
+        if (!msg) return;
+        sessionInput.value = '';
+        sessionInput.style.height = 'auto';
+        addMessage(sessionMessages, msg, 'user');
+        sessionSend.disabled = true;
+
+        try {
+            const res = await fetch(`${API}/api/session/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Fout');
+            addMessage(sessionMessages, data.reply, 'bot');
+
+            if (document.getElementById('ttsToggle').checked) {
+                speak(data.reply);
+            }
+        } catch (err) {
+            addMessage(sessionMessages, `Fout: ${err.message}`, 'bot');
+        }
+        sessionSend.disabled = false;
+        sessionInput.focus();
+    }
+
+    // End session
+    document.getElementById('endSessionBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('endSessionBtn');
+        btn.disabled = true;
+        btn.textContent = 'Analyseren';
+        btn.classList.add('btn-loading');
+        try {
+            const res = await fetch(`${API}/api/session/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Fout');
+
+            document.getElementById('feedbackText').innerHTML = markdownToHtml(data.feedback);
+            document.getElementById('feedbackOverlay').classList.add('visible');
+
+            // Reset UI
+            sessionUI.classList.add('hidden');
+            scenarioPicker.classList.remove('hidden');
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+        }
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        btn.textContent = 'Stop & Feedback';
+    });
+
+    document.getElementById('closeFeedback').addEventListener('click', () => {
+        document.getElementById('feedbackOverlay').classList.remove('visible');
+    });
+
+    // ── Voice (STT + TTS) ──────────────────────────
+    const micBtn = document.getElementById('micBtn');
+    const voiceStatus = document.getElementById('voiceStatus');
+    let recognition = null;
+    let isRecording = false;
+
+    // Initialize Speech Recognition
+    let micPermissionGranted = false;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'nl-NL';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+            micPermissionGranted = true;
+            console.log('Speech recognition started');
+        };
+
+        recognition.onresult = (event) => {
+            let transcript = '';
+            let isFinal = false;
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+                if (event.results[i].isFinal) isFinal = true;
+            }
+            sessionInput.value = transcript;
+            voiceStatus.textContent = `Herkend: "${transcript}"`;
+            if (isFinal) {
+                voiceStatus.textContent = 'Spraak herkend. Wordt verstuurd...';
+                // Stop recording and send
+                isRecording = false;
+                recognition.stop();
+                micBtn.classList.remove('recording');
+                micBtn.classList.add('inactive');
+                setTimeout(() => sendSessionMessage(), 300);
+            }
+        };
+
+        recognition.onend = () => {
+            console.log('Speech recognition ended, isRecording:', isRecording);
+            if (isRecording) {
+                // Auto-restart if user hasn't explicitly stopped
+                // This handles the "no-speech" timeout restart
+                console.log('Auto-restarting recognition...');
+                voiceStatus.textContent = 'Nog steeds aan het luisteren... Spreek nu.';
+                try { recognition.start(); } catch(e) {
+                    console.warn('Auto-restart failed:', e.message);
+                    isRecording = false;
+                    micBtn.classList.remove('recording');
+                    micBtn.classList.add('inactive');
+                    voiceStatus.textContent = 'Klik op de microfoon of typ hieronder';
+                }
+                return;
+            }
+            micBtn.classList.remove('recording');
+            micBtn.classList.add('inactive');
+            if (voiceStatus.textContent.startsWith('Spraak herkend')) return;
+            voiceStatus.textContent = 'Klik op de microfoon of typ hieronder';
+        };
+
+        recognition.onerror = (event) => {
+            console.warn('Speech recognition error:', event.error);
+            if (event.error === 'no-speech' && isRecording) {
+                // Don't stop — onend will auto-restart
+                voiceStatus.textContent = 'Geen spraak gedetecteerd. Blijf spreken...';
+                return;
+            }
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                isRecording = false;
+                micBtn.classList.remove('recording');
+                micBtn.classList.add('inactive');
+                voiceStatus.textContent = '⚠️ Microfoon geblokkeerd — sta toegang toe in je browser';
+                showStatus('Sta microfoontoegang toe: klik op het slot-icoon in de adresbalk → Microfoon → Toestaan', 'error');
+                return;
+            }
+            if (event.error === 'aborted') return; // Normal when we call .stop()
+            isRecording = false;
+            micBtn.classList.remove('recording');
+            micBtn.classList.add('inactive');
+            voiceStatus.textContent = `Spraakherkenning fout: ${event.error}`;
+        };
+    }
+
+    // Request mic permission proactively
+    async function ensureMicPermission() {
+        if (micPermissionGranted) return true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Permission granted — stop the stream immediately
+            stream.getTracks().forEach(t => t.stop());
+            micPermissionGranted = true;
+            return true;
+        } catch (err) {
+            console.warn('Mic permission denied:', err.message);
+            voiceStatus.textContent = '⚠️ Microfoon geblokkeerd — sta toegang toe in je browser';
+            showStatus('Sta microfoontoegang toe: klik op het slot-icoon in de adresbalk → Microfoon → Toestaan', 'error');
+            return false;
+        }
+    }
+
+    micBtn.addEventListener('click', async () => {
+        if (!recognition) {
+            showStatus('Spraakherkenning wordt niet ondersteund in deze browser.', 'error');
+            return;
+        }
+        if (isRecording) {
+            // User explicitly stops
+            isRecording = false;
+            recognition.stop();
+            micBtn.classList.remove('recording');
+            micBtn.classList.add('inactive');
+            voiceStatus.textContent = 'Klik op de microfoon of typ hieronder';
+        } else {
+            // Check mic permission first
+            const hasPermission = await ensureMicPermission();
+            if (!hasPermission) return;
+
+            // Stop any playing audio first so mic doesn't pick up TTS
+            sharedAudio.pause();
+            speechSynthesis.cancel();
+            audioQueue.length = 0;
+            isPlaying = false;
+
+            try {
+                recognition.start();
+                isRecording = true;
+                micBtn.classList.remove('inactive');
+                micBtn.classList.add('recording');
+                voiceStatus.textContent = 'Luisteren... Spreek nu.';
+            } catch (err) {
+                console.warn('Spraakherkenning start fout:', err.message);
+                recognition.abort();
+                setTimeout(() => {
+                    try {
+                        recognition.start();
+                        isRecording = true;
+                        micBtn.classList.remove('inactive');
+                        micBtn.classList.add('recording');
+                        voiceStatus.textContent = 'Luisteren... Spreek nu.';
+                    } catch (retryErr) {
+                        voiceStatus.textContent = `Fout: ${retryErr.message}`;
+                    }
+                }, 200);
+            }
+        }
+    });
+
+    // TTS via ElevenLabs — sends full text in one request (no sentence splitting)
+    let audioQueue = [];
+    let isPlaying = false;
+    let currentVoice = '';  // 'male' or 'female', set by session
+    let currentEmotion = '';  // emotie van het personage, set by session
+
+    // Shared Audio element — reuses a single element so the browser
+    // remembers the user-gesture unlock across plays.
+    const sharedAudio = new Audio();
+
+    async function speak(text) {
+        // Strip stage directions — [CONTEXT] lines and standalone italic lines (*action*)
+        const spokenText = text.replace(/^\[CONTEXT\].*$/gm, '').replace(/^\*[^*\n]+\*\s*$/gm, '').trim();
+        if (!spokenText) return;
+        audioQueue.push(spokenText);
+        if (!isPlaying) playNext();
+    }
+
+    async function playNext() {
+        if (audioQueue.length === 0) { isPlaying = false; return; }
+        isPlaying = true;
+        const text = audioQueue.shift();
+
+        try {
+            const body = { text };
+            if (currentVoice) body.voice = currentVoice;
+            if (currentEmotion) body.emotion = currentEmotion;
+
+            const res = await fetch(`${API}/api/tts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => null);
+                const errMsg = errData?.detail || `TTS fout (${res.status})`;
+                console.warn('ElevenLabs TTS:', errMsg);
+                browserSpeak(text);
+                playNext();
+                return;
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+
+            sharedAudio.src = url;
+            sharedAudio.onended = () => {
+                URL.revokeObjectURL(url);
+                playNext();
+            };
+            sharedAudio.onerror = () => {
+                URL.revokeObjectURL(url);
+                console.warn('Audio play error, falling back to browser TTS');
+                browserSpeak(text);
+                playNext();
+            };
+
+            try {
+                await sharedAudio.play();
+                setTtsProviderLabel('elevenlabs');
+            } catch (playErr) {
+                console.warn('Autoplay blocked:', playErr.message);
+                URL.revokeObjectURL(url);
+                browserSpeak(text);
+                playNext();
+            }
+        } catch (err) {
+            console.warn('TTS fetch error:', err);
+            browserSpeak(text);
+            playNext();
+        }
+    }
+
+    function setTtsProviderLabel(provider) {
+        const el = document.querySelector('.tts-provider');
+        if (!el) return;
+        if (provider === 'browser') {
+            el.textContent = '⚠ Browser TTS (fallback)';
+            el.style.color = 'var(--danger)';
+        } else {
+            el.innerHTML = '&#9835; Spraak via ElevenLabs';
+            el.style.color = '';
+        }
+    }
+
+    function browserSpeak(text) {
+        setTtsProviderLabel('browser');
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'nl-NL';
+            speechSynthesis.speak(utterance);
+        }
+    }
+
+    // Unlock audio on first user interaction (click anywhere)
+    function unlockAudio() {
+        sharedAudio.play().then(() => { sharedAudio.pause(); sharedAudio.currentTime = 0; }).catch(() => {});
+        document.removeEventListener('click', unlockAudio);
+    }
+    document.addEventListener('click', unlockAudio);
+
+    // ── Markdown to HTML renderer ──────────────────
+    function markdownToHtml(md) {
+        if (!md) return '';
+        let html = md;
+
+        // Protect code blocks from further processing
+        const codeBlocks = [];
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+            codeBlocks.push('<pre><code>' + escapeHtml(code) + '</code></pre>');
+            return '\x00CB' + (codeBlocks.length - 1) + '\x00';
+        });
+
+        // Protect inline code
+        const inlineCodes = [];
+        html = html.replace(/`([^`]+)`/g, (_, code) => {
+            inlineCodes.push('<code>' + escapeHtml(code) + '</code>');
+            return '\x00IC' + (inlineCodes.length - 1) + '\x00';
+        });
+
+        // Headers
+        html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+        // Horizontal rules
+        html = html.replace(/^---+$/gm, '<hr>');
+
+        // Standalone italic lines = stage directions → render as context-line
+        html = html.replace(/^\*([^*\n]+)\*\s*$/gm, '<div class="context-line">$1</div>');
+
+        // Bold and italic (handle multiline and various patterns)
+        html = html.replace(/\*\*\*(.+?)\*\*\*/gs, '<strong><em>$1</em></strong>');
+        html = html.replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>');
+        html = html.replace(/(?<![\\*])\*([^\s*](?:.*?[^\s*])?)\*(?!\*)/g, '<em>$1</em>');
+
+        // Convert list blocks: consecutive lines starting with - or number.
+        html = html.replace(/((?:^[\t ]*[-] .+\n?)+)/gm, (match) => {
+            const items = match.trim().split('\n')
+                .map(line => '<li>' + line.replace(/^[\t ]*[-] /, '') + '</li>')
+                .join('');
+            return '<ul>' + items + '</ul>';
+        });
+        html = html.replace(/((?:^\d+\. .+\n?)+)/gm, (match) => {
+            const items = match.trim().split('\n')
+                .map(line => '<li>' + line.replace(/^\d+\. /, '') + '</li>')
+                .join('');
+            return '<ol>' + items + '</ol>';
+        });
+
+        // [CONTEXT] lines → styled context block
+        html = html.replace(/^\[CONTEXT\]\s*(.+)$/gm, '<div class="context-line">$1</div>');
+
+        // Paragraphs: double newlines
+        html = html.replace(/\n\n+/g, '</p><p>');
+        // Single newlines (not inside block elements)
+        html = html.replace(/(?<!\>)\n(?!\<)/g, '<br>');
+
+        // Wrap in paragraph
+        html = '<p>' + html + '</p>';
+
+        // Clean up empty paragraphs and misplaced p tags around block elements
+        html = html.replace(/<p>\s*<\/p>/g, '');
+        html = html.replace(/<p>\s*(<(?:h[1-6]|ul|ol|hr|pre|blockquote))/g, '$1');
+        html = html.replace(/(<\/(?:h[1-6]|ul|ol|hr|pre|blockquote)>)\s*<\/p>/g, '$1');
+
+        // Restore inline codes and code blocks
+        html = html.replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[parseInt(i)]);
+        html = html.replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)]);
+
+        return html;
+    }
+
+    // ── Logs ───────────────────────────────────────
+    const logsBody = document.getElementById('logsBody');
+    const logLevelFilter = document.getElementById('logLevelFilter');
+    let logsAutoRefresh = null;
+
+    async function loadLogs() {
+        try {
+            const level = logLevelFilter.value;
+            const url = `${API}/api/logs?limit=200` + (level ? `&level=${level}` : '');
+            const res = await fetch(url);
+            const data = await res.json();
+            logsBody.innerHTML = data.logs.reverse().map(log => `
+                <tr>
+                    <td class="log-time">${log.timestamp}</td>
+                    <td><span class="log-level log-level-${log.level}">${log.level}</span></td>
+                    <td class="log-module">${log.module}</td>
+                    <td>${escapeHtml(log.message)}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            logsBody.innerHTML = `<tr><td colspan="4">Fout bij laden logs: ${err.message}</td></tr>`;
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    document.getElementById('refreshLogs').addEventListener('click', loadLogs);
+    logLevelFilter.addEventListener('change', loadLogs);
+
+    document.getElementById('autoRefreshLogs').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            logsAutoRefresh = setInterval(loadLogs, 5000);
+        } else {
+            clearInterval(logsAutoRefresh);
+            logsAutoRefresh = null;
+        }
+    });
+
+    // Start auto-refresh when logs tab is active
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            if (tab.dataset.tab === 'logs') {
+                loadLogs();
+                if (document.getElementById('autoRefreshLogs').checked && !logsAutoRefresh) {
+                    logsAutoRefresh = setInterval(loadLogs, 5000);
+                }
+            } else if (logsAutoRefresh) {
+                clearInterval(logsAutoRefresh);
+                logsAutoRefresh = null;
+            }
+        });
+    });
+
+    // ── Conversations ─────────────────────────────
+    const convList = document.getElementById('convList');
+    const convTypeFilter = document.getElementById('convTypeFilter');
+    const convListView = document.getElementById('convListView');
+    const convDetailView = document.getElementById('convDetailView');
+
+    async function loadConversations() {
+        try {
+            const filter = convTypeFilter.value;
+            const url = `${API}/api/conversations` + (filter ? `?conv_type=${filter}` : '');
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.conversations.length === 0) {
+                convList.innerHTML = `
+                    <li class="conv-empty">
+                        <h3>Nog geen gesprekken opgeslagen</h3>
+                        <p>Chats en oefensessies worden hier automatisch bewaard.</p>
+                    </li>`;
+                return;
+            }
+            convList.innerHTML = data.conversations.map(c => {
+                const typeBadge = c.type === 'session'
+                    ? '<span class="conv-type-badge conv-type-session">Oefensessie</span>'
+                    : '<span class="conv-type-badge conv-type-chat">Chat</span>';
+                const title = c.type === 'session'
+                    ? (c.metadata.scenario_name || 'Oefensessie')
+                    : (c.metadata.topic || 'Chat gesprek');
+                const dateStr = c.timestamp ? new Date(c.timestamp).toLocaleString('nl-NL') : '';
+                const difficulty = c.metadata.scenario_difficulty
+                    ? ` &middot; ${c.metadata.scenario_difficulty}`
+                    : '';
+                return `
+                    <li class="conv-item" onclick="openConversation('${c.id}')">
+                        <div class="conv-info">
+                            <div class="conv-title">${typeBadge}${escapeHtml(title)}</div>
+                            <div class="conv-meta">
+                                <span>${dateStr}</span>
+                                <span>${c.message_count} berichten${difficulty}</span>
+                            </div>
+                        </div>
+                        <div class="conv-actions">
+                            <button class="download-btn" onclick="event.stopPropagation();toggleExportDropdown(this)" title="Downloaden">&#8681;</button>
+                            <div class="export-dropdown">
+                                <button onclick="event.stopPropagation();exportConversation('${c.id}','pdf')">PDF</button>
+                                <button onclick="event.stopPropagation();exportConversation('${c.id}','docx')">Word (.docx)</button>
+                                <button onclick="event.stopPropagation();exportConversation('${c.id}','md')">Markdown (.md)</button>
+                            </div>
+                            <button class="delete-btn" onclick="event.stopPropagation();deleteConversation('${c.id}')" title="Verwijderen">&times;</button>
+                        </div>
+                    </li>`;
+            }).join('');
+        } catch (err) {
+            convList.innerHTML = `<li class="conv-empty"><p>Fout bij laden: ${err.message}</p></li>`;
+        }
+    }
+
+    async function openConversation(convId) {
+        try {
+            const res = await fetch(`${API}/api/conversations/${convId}`);
+            if (!res.ok) throw new Error('Niet gevonden');
+            const data = await res.json();
+
+            const title = data.type === 'session'
+                ? (data.metadata.scenario_name || 'Oefensessie')
+                : 'Chat gesprek';
+            document.getElementById('convDetailTitle').textContent = title;
+
+            const msgContainer = document.getElementById('convDetailMessages');
+            msgContainer.innerHTML = '';
+            for (const msg of data.messages) {
+                const div = document.createElement('div');
+                const isUser = msg.role === 'user' || msg.role === 'student';
+                div.className = `message ${isUser ? 'user' : 'bot'}`;
+                if (isUser) {
+                    div.textContent = msg.content;
+                } else {
+                    div.innerHTML = markdownToHtml(msg.content);
+                }
+                msgContainer.appendChild(div);
+            }
+
+            // Show feedback if available
+            const fbContainer = document.getElementById('convDetailFeedback');
+            if (data.metadata && data.metadata.feedback) {
+                fbContainer.innerHTML = '<h3>Feedback</h3>' + markdownToHtml(data.metadata.feedback);
+                fbContainer.classList.remove('hidden');
+            } else {
+                fbContainer.classList.add('hidden');
+            }
+
+            convListView.style.display = 'none';
+            convDetailView.classList.add('active');
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+        }
+    }
+
+    document.getElementById('convBackBtn').addEventListener('click', () => {
+        convDetailView.classList.remove('active');
+        convListView.style.display = '';
+    });
+
+    async function deleteConversation(convId) {
+        if (!confirm('Weet je zeker dat je dit gesprek wilt verwijderen?')) return;
+        try {
+            await fetch(`${API}/api/conversations/${convId}`, { method: 'DELETE' });
+            loadConversations();
+            showStatus('Gesprek verwijderd', 'success');
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+        }
+    }
+
+    function toggleExportDropdown(btn) {
+        const dropdown = btn.nextElementSibling;
+        // Close all other open dropdowns
+        document.querySelectorAll('.export-dropdown.open').forEach(d => {
+            if (d !== dropdown) d.classList.remove('open');
+        });
+        dropdown.classList.toggle('open');
+    }
+
+    function exportConversation(convId, format) {
+        document.querySelectorAll('.export-dropdown.open').forEach(d => d.classList.remove('open'));
+        const a = document.createElement('a');
+        a.href = `${API}/api/conversations/${convId}/export?format=${format}`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // Close export dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.conv-actions')) {
+            document.querySelectorAll('.export-dropdown.open').forEach(d => d.classList.remove('open'));
+        }
+    });
+
+    document.getElementById('refreshConvs').addEventListener('click', loadConversations);
+    convTypeFilter.addEventListener('change', loadConversations);
+
+    document.getElementById('saveChatBtn').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${API}/api/chat/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: '', user_id: 'web_user' }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Opslaan mislukt');
+            showStatus(`Chat opgeslagen (${data.message_count} berichten)`, 'success');
+            loadConversations();
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+        }
+    });
+
+    // Load conversations when tab is activated
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            if (tab.dataset.tab === 'conversations') {
+                loadConversations();
+                // Reset to list view
+                convDetailView.classList.remove('active');
+                convListView.style.display = '';
+            }
+        });
+    });
+
+    // ── Setup / Settings ─────────────────────────────
+    const PROVIDER_MODELS = {
+        anthropic: [
+            { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (aanbevolen)' },
+            { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+            { value: 'claude-haiku-4-20250414', label: 'Claude Haiku 4' },
+            { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
+        ],
+        openai: [
+            { value: 'gpt-4o', label: 'GPT-4o (aanbevolen)' },
+            { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+            { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+            { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+        ],
+    };
+
+    let currentProvider = 'anthropic';
+    let appLocked = false;
+
+    function updateModelOptions(provider, selectedModel) {
+        const select = document.getElementById('setupModel');
+        const models = PROVIDER_MODELS[provider] || [];
+        select.innerHTML = models.map(m =>
+            `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}</option>`
+        ).join('');
+    }
+
+    function switchToSetup() {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelector('.tab[data-tab="setup"]').classList.add('active');
+        document.getElementById('setupPanel').classList.add('active');
+    }
+
+    function updateLockdown(locked) {
+        appLocked = locked;
+        const banner = document.getElementById('lockdownBanner');
+        const chatLock = document.getElementById('chatLockOverlay');
+        const practiceLock = document.getElementById('practiceLockOverlay');
+        if (locked) {
+            banner.classList.add('visible');
+            chatLock.classList.add('visible');
+            practiceLock.classList.add('visible');
+        } else {
+            banner.classList.remove('visible');
+            chatLock.classList.remove('visible');
+            practiceLock.classList.remove('visible');
+        }
+    }
+
+    async function loadSettings() {
+        try {
+            const res = await fetch(`${API}/api/settings`);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            currentProvider = data.provider || 'anthropic';
+
+            // Update provider radios
+            document.querySelectorAll('.provider-radio').forEach(r => {
+                r.classList.toggle('selected', r.dataset.provider === currentProvider);
+            });
+
+            updateModelOptions(currentProvider, data.model);
+
+            // Show masked keys and status
+            const aiKeyInput = document.getElementById('setupAiKey');
+            const aiKeyStatus = document.getElementById('aiKeyStatus');
+            if (data.ai_api_key_masked) {
+                aiKeyInput.placeholder = data.ai_api_key_masked;
+                aiKeyStatus.textContent = '✓ Ingesteld';
+                aiKeyStatus.className = 'setup-status ok';
+            } else {
+                aiKeyInput.placeholder = 'sk-...';
+                aiKeyStatus.textContent = '✗ Niet ingesteld';
+                aiKeyStatus.className = 'setup-status missing';
+            }
+
+            const elKeyInput = document.getElementById('setupElKey');
+            const elKeyStatus = document.getElementById('elKeyStatus');
+            if (data.elevenlabs_api_key_masked) {
+                elKeyInput.placeholder = data.elevenlabs_api_key_masked;
+                elKeyStatus.textContent = '✓ Ingesteld';
+                elKeyStatus.className = 'setup-status ok';
+            } else {
+                elKeyInput.placeholder = 'sk_...';
+                elKeyStatus.textContent = 'Optioneel';
+                elKeyStatus.className = 'setup-status';
+            }
+
+            // Update model hint in nav
+            const modelLabel = data.model || 'onbekend';
+            ragModelHint.textContent = `${currentProvider}: ${modelLabel}`;
+            ragModelHint.classList.remove('error');
+            ragModelHint.classList.add('visible');
+
+            // Lockdown
+            updateLockdown(!data.configured);
+
+            // If locked, auto-navigate to Setup
+            if (!data.configured) {
+                switchToSetup();
+            }
+        } catch (err) {
+            console.warn('Kon settings niet laden:', err);
+        }
+    }
+
+    // Provider radio click
+    document.querySelectorAll('.provider-radio').forEach(radio => {
+        radio.addEventListener('click', () => {
+            document.querySelectorAll('.provider-radio').forEach(r => r.classList.remove('selected'));
+            radio.classList.add('selected');
+            currentProvider = radio.dataset.provider;
+            updateModelOptions(currentProvider);
+        });
+    });
+
+    // Save button
+    document.getElementById('setupSaveBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('setupSaveBtn');
+        const statusEl = document.getElementById('setupSaveStatus');
+        btn.disabled = true;
+        btn.textContent = 'Opslaan...';
+        statusEl.textContent = '';
+
+        const payload = {
+            provider: currentProvider,
+            model: document.getElementById('setupModel').value,
+        };
+        const aiKey = document.getElementById('setupAiKey').value.trim();
+        if (aiKey) payload.ai_api_key = aiKey;
+        const elKey = document.getElementById('setupElKey').value.trim();
+        if (elKey) payload.elevenlabs_api_key = elKey;
+
+        try {
+            const res = await fetch(`${API}/api/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.detail || 'Opslaan mislukt');
+            }
+            statusEl.textContent = '✓ Opgeslagen!';
+            statusEl.style.color = 'var(--success)';
+            showStatus('Instellingen opgeslagen', 'success');
+
+            // Clear password inputs (they were saved)
+            document.getElementById('setupAiKey').value = '';
+            document.getElementById('setupElKey').value = '';
+
+            // Reload settings to update UI
+            await loadSettings();
+            checkModelAvailability();
+        } catch (err) {
+            statusEl.textContent = `✗ ${err.message}`;
+            statusEl.style.color = 'var(--danger)';
+        }
+        btn.disabled = false;
+        btn.textContent = 'Opslaan';
+    });
+
+    // ── Init ───────────────────────────────────────
+    loadDocuments();
+    loadSettings();
+    </script>
+    <footer class="copyright-footer">Copyright &copy; 2026 twinology.ai</footer>
+</body>
+</html>

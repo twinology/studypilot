@@ -1,0 +1,36 @@
+# Environment & secrets
+.env
+settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Data directories (user-specific)
+chroma_db/
+documents/
+conversations/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local/temp/artifact files
+=*
+docs/
+.claude/
+server.log
+reindex_output.txt
+nul
+test
+
+# OS
+.DS_Store
+Thumbs.db
