@@ -422,10 +422,17 @@ async def crawl_website(req: CrawlWebsiteRequest):
 
     domain = parsed.netloc.replace("www.", "")
 
+    # Determine path filter: only crawl pages at and under the given URL path
+    base_path = parsed.path.rstrip("/")
+    if base_path and base_path != "/":
+        select_paths = [base_path, base_path + "/*"]
+    else:
+        select_paths = None
+
     # Run Tavily crawl in a thread to not block the event loop
     def _do_crawl():
         client = TavilyClient(api_key=tavily_key)
-        result = client.crawl(
+        crawl_kwargs = dict(
             url=url,
             max_depth=req.max_depth,
             max_breadth=20,
@@ -433,6 +440,9 @@ async def crawl_website(req: CrawlWebsiteRequest):
             format="markdown",
             extract_depth="advanced",
         )
+        if select_paths:
+            crawl_kwargs["select_paths"] = select_paths
+        result = client.crawl(**crawl_kwargs)
         return result
 
     try:
