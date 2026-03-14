@@ -1210,8 +1210,8 @@
 
                 <div class="setup-field">
                     <label for="setupModel">Model</label>
-                    <div id="modelSearchRow" style="display:none;margin-bottom:8px;">
-                        <input type="text" id="openrouterSearch" placeholder="🔍 Zoek model... bijv. claude, gpt, llama, gemini">
+                    <div id="modelSearchRow" style="margin-bottom:8px;">
+                        <input type="text" id="modelSearchInput" placeholder="🔍 Filter model...">
                     </div>
                     <select id="setupModel"></select>
                     <div class="field-hint" id="modelHint">Het AI-model dat gebruikt wordt voor chat, scenarios en feedback.</div>
@@ -1293,7 +1293,7 @@
                 <img src="/images/logo.png" alt="StudyPilot" class="info-hero-logo">
                 <div class="info-hero-text">
                     <h2>StudyPilot</h2>
-                    <span class="version-tag" id="infoVersionTag">v2.7.0</span>
+                    <span class="version-tag" id="infoVersionTag">v2.7.1</span>
                     <p>Minder zoeken, meer oefenen en sneller leren!</p>
                 </div>
             </div>
@@ -2892,8 +2892,9 @@
 
     function renderProviderConfig(provider) {
         const area = document.getElementById('providerConfigArea');
-        const searchRow = document.getElementById('modelSearchRow');
-        searchRow.style.display = 'none';
+        // Clear search when switching provider
+        const searchInput = document.getElementById('modelSearchInput');
+        if (searchInput) searchInput.value = '';
 
         if (provider === 'anthropic') {
             area.innerHTML = `
@@ -2934,7 +2935,6 @@
                     </div>
                 </div>`;
             _syncKeyField('setupOpenRouterKey', 'setupOrKeyInline');
-            searchRow.style.display = '';
         } else if (provider === 'ollama') {
             area.innerHTML = `
                 <div class="provider-config">
@@ -3004,11 +3004,18 @@
         }
     }
 
+    // Track which model was selected per provider (so switching back remembers)
+    let _selectedModelPerProvider = {};
+
     function updateModelOptions(provider, selectedModel) {
         const select = document.getElementById('setupModel');
+        const modelHint = document.getElementById('modelHint');
 
         // Render provider-specific config
         renderProviderConfig(provider);
+
+        // Remember selected model
+        if (selectedModel) _selectedModelPerProvider[provider] = selectedModel;
 
         if (provider === 'ollama') {
             fetchOllamaModels(selectedModel);
@@ -3019,14 +3026,53 @@
             return;
         }
 
-        const models = PROVIDER_MODELS[provider] || [];
-        select.innerHTML = models.map(m =>
-            `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}</option>`
-        ).join('');
+        // Anthropic / OpenAI: filter from static list
+        _filterModels(provider, selectedModel);
+    }
+
+    function _filterModels(provider, selectedModel) {
+        const select = document.getElementById('setupModel');
+        const modelHint = document.getElementById('modelHint');
+        const query = (document.getElementById('modelSearchInput').value || '').toLowerCase();
+        const allModels = PROVIDER_MODELS[provider] || [];
+
+        let filtered = allModels;
+        if (query) {
+            filtered = allModels.filter(m =>
+                m.value.toLowerCase().includes(query) || m.label.toLowerCase().includes(query)
+            );
+        }
+
+        const sel = selectedModel || _selectedModelPerProvider[provider] || '';
+
+        // For large lists (OpenRouter), limit to 50 for performance
+        const maxShow = allModels.length > 60 ? 50 : allModels.length;
+        const shown = filtered.slice(0, maxShow);
+
+        select.innerHTML = shown.map(m => {
+            const cost = m.cost_per_m ? ` ($${m.cost_per_m}/M)` : '';
+            return `<option value="${m.value}" ${m.value === sel ? 'selected' : ''}>${m.label}${cost}</option>`;
+        }).join('');
+
+        if (filtered.length > maxShow) {
+            select.innerHTML += `<option value="" disabled>... en ${filtered.length - maxShow} meer — verfijn je zoekopdracht</option>`;
+        }
+
+        if (filtered.length === 0) {
+            select.innerHTML = '<option value="">Geen resultaten — pas je zoekopdracht aan</option>';
+        }
+
+        const total = allModels.length;
+        if (query && filtered.length < total) {
+            modelHint.innerHTML = `${filtered.length} van ${total} modellen getoond`;
+        } else if (!query) {
+            modelHint.textContent = 'Het AI-model dat gebruikt wordt voor chat, scenarios en feedback.';
+        }
     }
 
     async function fetchOllamaModels(selectedModel) {
         const select = document.getElementById('setupModel');
+        const modelHint = document.getElementById('modelHint');
         const listEl = document.getElementById('ollamaModelListInline') || document.getElementById('ollamaModelList');
         select.innerHTML = '<option value="">Modellen laden...</option>';
         try {
@@ -3034,25 +3080,24 @@
             const data = await res.json();
             if (data.status === 'ok' && data.models.length > 0) {
                 PROVIDER_MODELS.ollama = data.models;
-                select.innerHTML = data.models.map(m =>
-                    `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}</option>`
-                ).join('');
+                _filterModels('ollama', selectedModel);
                 if (listEl) listEl.innerHTML = `<span style="color:var(--success)">✓ ${data.models.length} modellen gevonden op ${data.base_url}</span>`;
+                modelHint.innerHTML = `<span style="color:var(--success)">✓ ${data.models.length} lokale modellen</span>`;
             } else {
                 select.innerHTML = '<option value="">Geen modellen gevonden</option>';
                 const err = data.error || 'Geen modellen beschikbaar';
                 if (listEl) listEl.innerHTML = `<span style="color:var(--danger)">✗ ${err}</span><br>
                     <span style="font-size:11px;color:var(--text-muted)">Zorg dat Ollama draait: <code>ollama serve</code> en download een model: <code>ollama pull llama3.1</code></span>`;
+                modelHint.innerHTML = `<span style="color:var(--danger)">✗ ${err}</span>`;
             }
         } catch (err) {
             select.innerHTML = '<option value="">Verbinding mislukt</option>';
             if (listEl) listEl.innerHTML = `<span style="color:var(--danger)">✗ Kan geen verbinding maken met Ollama</span>`;
+            modelHint.innerHTML = `<span style="color:var(--danger)">✗ Kan geen verbinding maken met Ollama</span>`;
         }
     }
 
     // ── OpenRouter model fetching ──
-    let _openrouterAllModels = [];
-
     async function fetchOpenRouterModels(selectedModel) {
         const select = document.getElementById('setupModel');
         const modelHint = document.getElementById('modelHint');
@@ -3061,9 +3106,8 @@
             const res = await fetch(`${API}/api/openrouter/models`);
             const data = await res.json();
             if (data.status === 'ok' && data.models.length > 0) {
-                _openrouterAllModels = data.models;
                 PROVIDER_MODELS.openrouter = data.models;
-                _filterOpenRouterModels(selectedModel);
+                _filterModels('openrouter', selectedModel);
                 modelHint.innerHTML = `<span style="color:var(--success)">✓ ${data.total} modellen beschikbaar</span> — gebruik het zoekveld om te filteren`;
             } else {
                 select.innerHTML = '<option value="">Geen modellen gevonden</option>';
@@ -3074,32 +3118,6 @@
             modelHint.innerHTML = `<span style="color:var(--danger)">✗ Fout bij ophalen: ${err.message}</span>`;
         }
     }
-
-    function _filterOpenRouterModels(selectedModel) {
-        const select = document.getElementById('setupModel');
-        const query = (document.getElementById('openrouterSearch').value || '').toLowerCase();
-        let filtered = _openrouterAllModels;
-        if (query) {
-            filtered = _openrouterAllModels.filter(m =>
-                m.value.toLowerCase().includes(query) || m.label.toLowerCase().includes(query)
-            );
-        }
-        // Limit to 50 in dropdown for performance, show count
-        const shown = filtered.slice(0, 50);
-        select.innerHTML = shown.map(m =>
-            `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}${m.cost_per_m ? ` ($${m.cost_per_m}/M)` : ''}</option>`
-        ).join('');
-        if (filtered.length > 50) {
-            select.innerHTML += `<option value="" disabled>... en ${filtered.length - 50} meer — gebruik zoekfilter</option>`;
-        }
-        if (filtered.length === 0) {
-            select.innerHTML = '<option value="">Geen resultaten — probeer een andere zoekopdracht</option>';
-        }
-    }
-
-    document.getElementById('openrouterSearch').addEventListener('input', () => {
-        _filterOpenRouterModels(document.getElementById('setupModel').value);
-    });
 
     function switchToSetup() {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -3220,6 +3238,13 @@
             currentProvider = radio.dataset.provider;
             updateModelOptions(currentProvider);
         });
+    });
+
+    // Unified model search filter
+    document.getElementById('modelSearchInput').addEventListener('input', () => {
+        if (currentProvider === 'ollama' && (PROVIDER_MODELS.ollama || []).length === 0) return;
+        if (currentProvider === 'openrouter' && (PROVIDER_MODELS.openrouter || []).length === 0) return;
+        _filterModels(currentProvider, document.getElementById('setupModel').value);
     });
 
     // Save button
@@ -3381,7 +3406,7 @@
     </script>
     <footer class="copyright-footer">
         <span>Copyright &copy; 2026 twinology.ai</span>
-        <span class="footer-version" id="footerVersion">v2.7.0 — Multimodal RAG Edition</span>
+        <span class="footer-version" id="footerVersion">v2.7.1 — Multimodal RAG Edition</span>
     </footer>
 </body>
 </html>
