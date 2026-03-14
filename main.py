@@ -532,67 +532,64 @@ async def crawl_website(req: CrawlWebsiteRequest):
         """Strip navigation menus, headers and footers — keep only the body content."""
         lines = text.split("\n")
         cleaned = []
-        in_nav = False
         body_started = False
+        nav_link_count = 0  # Count consecutive nav links
 
-        for line in lines:
+        # --- Phase 1: find where the real body content starts ---
+        # The header consists of consecutive nav links, boilerplate, phone numbers, etc.
+        # Once we hit a heading (#) or substantial paragraph text, the body has started.
+        header_end = 0
+        consecutive_nav = 0
+        for i, line in enumerate(lines):
             stripped = line.strip()
-
-            # Skip empty lines before body starts
-            if not body_started and not stripped:
+            if not stripped:
                 continue
-
-            # Detect navigation menu: consecutive lines that are markdown links (* [text](/path))
             is_nav_link = bool(re.match(r'^[\*\-\+]\s+\[.+?\]\(', stripped))
             is_sub_link = bool(re.match(r'^\+\s+\[.+?\]\(', stripped))
+            is_boilerplate = bool(re.match(
+                r'^\[(Bel (gratis )?met:|Opleiderscore:)', stripped
+            )) or bool(re.match(
+                r'^\* \[(Alle trainingen|Goed bereikbare|Maatwerk in leer|Ervaren trainers|Eindevaluatie|Effectieve|Praktijkgerichte|Veilige)', stripped
+            ))
+            is_breadcrumb = stripped.startswith("* [Home]")
 
-            if is_nav_link or is_sub_link:
-                in_nav = True
+            if is_nav_link or is_sub_link or is_boilerplate or is_breadcrumb:
+                consecutive_nav += 1
+                header_end = i + 1
+            elif consecutive_nav >= 3:
+                # We've seen 3+ consecutive nav links followed by non-nav content
+                # This is where the body starts
+                header_end = i
+                break
+            else:
+                # Non-nav content before seeing enough nav links — likely body already
+                break
+
+        # --- Phase 2: find where the footer starts ---
+        footer_start = len(lines)
+        for i in range(len(lines) - 1, -1, -1):
+            stripped = lines[i].strip()
+            if not stripped:
                 continue
+            if re.match(r'^[©�]\s*\d{4}', stripped) or re.match(r'^Wij verlenen onze diensten', stripped):
+                footer_start = i
+                continue
+            if footer_start < len(lines) and i < footer_start:
+                break
 
-            # End of nav block
-            if in_nav and not is_nav_link and not is_sub_link:
-                in_nav = False
-                # Skip remaining header elements (phone numbers, scores, breadcrumbs)
-                if re.match(r'^\[Bel (gratis )?met:', stripped):
+        # --- Phase 3: extract body content between header and footer ---
+        for i in range(header_end, footer_start):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Skip breadcrumb lines that may appear right after the header
+            if not body_started:
+                if not stripped:
                     continue
-                if re.match(r'^\[Opleiderscore:', stripped):
+                if stripped.startswith("* [Home]"):
                     continue
-                if re.match(r'^\* \[Home\]', stripped):
+                if re.match(r'^\[(Bel (gratis )?met:|Opleiderscore:)', stripped):
                     continue
-
-            if in_nav:
-                continue
-
-            # Skip header boilerplate lines
-            if re.match(r'^\[Bel (gratis )?met:', stripped):
-                continue
-            if re.match(r'^\[Opleiderscore:', stripped):
-                continue
-            if re.match(r'^\* \[Alle trainingen', stripped):
-                continue
-            if re.match(r'^\* \[Goed bereikbare', stripped):
-                continue
-            if re.match(r'^\* \[Maatwerk in leer', stripped):
-                continue
-            if re.match(r'^\* \[Ervaren trainers', stripped):
-                continue
-            if re.match(r'^\* \[Eindevaluatie', stripped):
-                continue
-            if re.match(r'^\* \[Effectieve', stripped):
-                continue
-            if re.match(r'^\* \[Praktijkgerichte', stripped):
-                continue
-            if re.match(r'^\* \[Veilige', stripped):
-                continue
-
-            # Detect footer: copyright line, "Wij verlenen onze diensten"
-            if re.match(r'^©\s*\d{4}', stripped) or re.match(r'^Wij verlenen onze diensten', stripped):
-                break  # Stop — everything after is footer
-
-            # Skip breadcrumb-style nav (e.g., "* [Home](/) * [Xzellent](#) * ...")
-            if stripped.startswith("* [Home]"):
-                continue
 
             body_started = True
             cleaned.append(line)
