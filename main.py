@@ -458,6 +458,81 @@ async def crawl_website(req: CrawlWebsiteRequest):
     if not results:
         raise HTTPException(400, "Geen pagina's gevonden op deze website.")
 
+    def _clean_crawled_content(text: str) -> str:
+        """Strip navigation menus, headers and footers — keep only the body content."""
+        lines = text.split("\n")
+        cleaned = []
+        in_nav = False
+        body_started = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Skip empty lines before body starts
+            if not body_started and not stripped:
+                continue
+
+            # Detect navigation menu: consecutive lines that are markdown links (* [text](/path))
+            is_nav_link = bool(re.match(r'^[\*\-\+]\s+\[.+?\]\(', stripped))
+            is_sub_link = bool(re.match(r'^\+\s+\[.+?\]\(', stripped))
+
+            if is_nav_link or is_sub_link:
+                in_nav = True
+                continue
+
+            # End of nav block
+            if in_nav and not is_nav_link and not is_sub_link:
+                in_nav = False
+                # Skip remaining header elements (phone numbers, scores, breadcrumbs)
+                if re.match(r'^\[Bel (gratis )?met:', stripped):
+                    continue
+                if re.match(r'^\[Opleiderscore:', stripped):
+                    continue
+                if re.match(r'^\* \[Home\]', stripped):
+                    continue
+
+            if in_nav:
+                continue
+
+            # Skip header boilerplate lines
+            if re.match(r'^\[Bel (gratis )?met:', stripped):
+                continue
+            if re.match(r'^\[Opleiderscore:', stripped):
+                continue
+            if re.match(r'^\* \[Alle trainingen', stripped):
+                continue
+            if re.match(r'^\* \[Goed bereikbare', stripped):
+                continue
+            if re.match(r'^\* \[Maatwerk in leer', stripped):
+                continue
+            if re.match(r'^\* \[Ervaren trainers', stripped):
+                continue
+            if re.match(r'^\* \[Eindevaluatie', stripped):
+                continue
+            if re.match(r'^\* \[Effectieve', stripped):
+                continue
+            if re.match(r'^\* \[Praktijkgerichte', stripped):
+                continue
+            if re.match(r'^\* \[Veilige', stripped):
+                continue
+
+            # Detect footer: copyright line, "Wij verlenen onze diensten"
+            if re.match(r'^©\s*\d{4}', stripped) or re.match(r'^Wij verlenen onze diensten', stripped):
+                break  # Stop — everything after is footer
+
+            # Skip breadcrumb-style nav (e.g., "* [Home](/) * [Xzellent](#) * ...")
+            if stripped.startswith("* [Home]"):
+                continue
+
+            body_started = True
+            cleaned.append(line)
+
+        # Strip trailing empty lines
+        while cleaned and not cleaned[-1].strip():
+            cleaned.pop()
+
+        return "\n".join(cleaned)
+
     # Collect all page contents into one combined markdown document
     combined_parts = [f"# Website crawl: {url}\n"]
     page_details = []
@@ -469,9 +544,14 @@ async def crawl_website(req: CrawlWebsiteRequest):
         if not raw_content or not raw_content.strip():
             continue
 
-        # Get page title from content
+        # Clean content: remove nav, header, footer
+        cleaned_content = _clean_crawled_content(raw_content)
+        if not cleaned_content.strip():
+            continue
+
+        # Get page title from cleaned content
         page_title = ""
-        for line in raw_content.split("\n"):
+        for line in cleaned_content.split("\n"):
             line = line.strip()
             if line.startswith("#"):
                 page_title = line.lstrip("#").strip()
@@ -482,12 +562,12 @@ async def crawl_website(req: CrawlWebsiteRequest):
             page_parsed = _urlparse(page_url)
             page_title = page_parsed.path.strip("/").replace("/", " / ").title() or domain
 
-        combined_parts.append(f"\n\n---\n\n## Bron: {page_url}\n\n{raw_content}")
+        combined_parts.append(f"\n\n---\n\n## Bron: {page_url}\n\n{cleaned_content}")
         page_details.append({
             "url": page_url,
             "title": page_title,
-            "characters": len(raw_content),
-            "content": raw_content[:5000],
+            "characters": len(cleaned_content),
+            "content": cleaned_content[:5000],
         })
 
     if not page_details:
