@@ -1293,7 +1293,7 @@
                 <img src="/images/logo.png" alt="StudyPilot" class="info-hero-logo">
                 <div class="info-hero-text">
                     <h2>StudyPilot</h2>
-                    <span class="version-tag" id="infoVersionTag">v2.7.1</span>
+                    <span class="version-tag" id="infoVersionTag">v2.8.0</span>
                     <p>Minder zoeken, meer oefenen en sneller leren!</p>
                 </div>
             </div>
@@ -1508,15 +1508,25 @@
                         <span class="info-card-icon">🔢</span>
                         <div>
                             <div class="info-card-title">Token Verbruik</div>
-                            <div class="info-card-subtitle">Sessie-totalen (chat + oefeningen)</div>
+                            <div class="info-card-subtitle">Per sessie en totalen (chat + oefeningen)</div>
                         </div>
                     </div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px;">📊 Deze sessie</div>
+                    <div class="info-row"><span class="info-label">API-aanroepen</span><span class="info-value" id="infoSessionCalls">0</span></div>
+                    <div class="info-row"><span class="info-label">Tokens in</span><span class="info-value" id="infoSessionIn">0</span></div>
+                    <div class="info-row"><span class="info-label">Tokens uit</span><span class="info-value" id="infoSessionOut">0</span></div>
+                    <div class="info-row"><span class="info-label">Tokens totaal</span><span class="info-value" id="infoSessionTokens">0</span></div>
+                    <div class="info-row"><span class="info-label">Chunks gebruikt</span><span class="info-value" id="infoSessionChunks">0</span></div>
+                    <div class="info-row"><span class="info-label">Geschatte kosten</span><span class="info-value" id="infoSessionCost">€0,0000</span></div>
+                    <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px;">📈 Totaal (alle sessies)</div>
                     <div class="info-row"><span class="info-label">API-aanroepen</span><span class="info-value" id="infoTotalCalls">0</span></div>
                     <div class="info-row"><span class="info-label">Tokens in</span><span class="info-value" id="infoTotalIn">0</span></div>
                     <div class="info-row"><span class="info-label">Tokens uit</span><span class="info-value" id="infoTotalOut">0</span></div>
                     <div class="info-row"><span class="info-label">Tokens totaal</span><span class="info-value" id="infoTotalTokens">0</span></div>
                     <div class="info-row"><span class="info-label">Chunks gebruikt</span><span class="info-value" id="infoTotalChunks">0</span></div>
-                    <div class="info-row"><span class="info-label">Geschatte kosten</span><span class="info-value" id="infoTotalCost">$0.0000</span></div>
+                    <div class="info-row"><span class="info-label">Geschatte kosten</span><span class="info-value" id="infoTotalCost">€0,0000</span></div>
+                    <div style="font-size:10px;color:var(--text-muted);margin-top:6px;" id="exchangeRateInfo"></div>
                 </div>
             </div>
         </div>
@@ -1533,6 +1543,46 @@
 
     <script>
     const API = '';
+
+    // ── Exchange rate & token stats persistence ──────────
+    window._eurRate = 0.92; // fallback
+    window._totalTokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+
+    async function _loadExchangeRate() {
+        try {
+            const res = await fetch(`${API}/api/exchange-rate`);
+            if (res.ok) {
+                const data = await res.json();
+                window._eurRate = data.rate || 0.92;
+            }
+        } catch (e) { console.warn('Wisselkoers laden mislukt:', e); }
+    }
+
+    async function _loadTotalTokenStats() {
+        try {
+            const res = await fetch(`${API}/api/token-stats`);
+            if (res.ok) {
+                window._totalTokenStats = await res.json();
+            }
+        } catch (e) { console.warn('Token stats laden mislukt:', e); }
+    }
+
+    async function _persistTokenDelta(delta) {
+        try {
+            const res = await fetch(`${API}/api/token-stats`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(delta),
+            });
+            if (res.ok) {
+                window._totalTokenStats = await res.json();
+            }
+        } catch (e) { /* fire and forget */ }
+    }
+
+    // Load on startup
+    _loadExchangeRate();
+    _loadTotalTokenStats();
 
     // ── Tab switching ──────────────────────────────
     document.querySelectorAll('.tab').forEach(tab => {
@@ -2008,17 +2058,21 @@
                 const inTok = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
                 const outTok = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0;
                 const totalTokens = inTok + outTok;
-                const costEstimate = (inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000).toFixed(4);
+                const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
+                const costEur = costUsd * (window._eurRate || 0.92);
                 const chunks = typeof usage.context_chunks === 'number' ? usage.context_chunks : 0;
 
-                // Track cumulative stats for info page
+                // Track session stats
                 if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
                 window._tokenStats.input += inTok;
                 window._tokenStats.output += outTok;
                 window._tokenStats.total += totalTokens;
                 window._tokenStats.chunks += chunks;
-                window._tokenStats.cost += parseFloat(costEstimate);
+                window._tokenStats.cost += costUsd;
                 window._tokenStats.calls += 1;
+
+                // Persist delta to backend (fire and forget)
+                _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: chunks, cost: costUsd, calls: 1 });
 
                 const usageDiv = document.createElement('div');
                 usageDiv.className = 'token-usage';
@@ -2039,9 +2093,9 @@
                         <span class="tu-label">Chunks:</span>
                         <span class="tu-value">${chunks}</span>
                     </span>
-                    <span class="tu-item" title="Geschatte kosten (Sonnet: $3/M in, $15/M uit)">
+                    <span class="tu-item" title="Geschatte kosten in euro">
                         <span class="tu-label">Kosten:</span>
-                        <span class="tu-value">$${costEstimate}</span>
+                        <span class="tu-value">€${costEur.toFixed(4).replace('.', ',')}</span>
                     </span>
                 `;
                 div.appendChild(usageDiv);
@@ -3384,13 +3438,29 @@
     }
 
     function updateInfoTokenStats() {
+        const rate = window._eurRate || 0.92;
+
+        // Session stats
         const s = window._tokenStats || { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
-        document.getElementById('infoTotalCalls').textContent = s.calls.toLocaleString('nl-NL');
-        document.getElementById('infoTotalIn').textContent = s.input.toLocaleString('nl-NL');
-        document.getElementById('infoTotalOut').textContent = s.output.toLocaleString('nl-NL');
-        document.getElementById('infoTotalTokens').textContent = s.total.toLocaleString('nl-NL');
-        document.getElementById('infoTotalChunks').textContent = s.chunks.toLocaleString('nl-NL');
-        document.getElementById('infoTotalCost').textContent = `$${s.cost.toFixed(4)}`;
+        document.getElementById('infoSessionCalls').textContent = s.calls.toLocaleString('nl-NL');
+        document.getElementById('infoSessionIn').textContent = s.input.toLocaleString('nl-NL');
+        document.getElementById('infoSessionOut').textContent = s.output.toLocaleString('nl-NL');
+        document.getElementById('infoSessionTokens').textContent = s.total.toLocaleString('nl-NL');
+        document.getElementById('infoSessionChunks').textContent = s.chunks.toLocaleString('nl-NL');
+        document.getElementById('infoSessionCost').textContent = `€${(s.cost * rate).toFixed(4).replace('.', ',')}`;
+
+        // All-time totals (from backend)
+        const t = window._totalTokenStats || { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+        document.getElementById('infoTotalCalls').textContent = t.calls.toLocaleString('nl-NL');
+        document.getElementById('infoTotalIn').textContent = t.input.toLocaleString('nl-NL');
+        document.getElementById('infoTotalOut').textContent = t.output.toLocaleString('nl-NL');
+        document.getElementById('infoTotalTokens').textContent = t.total.toLocaleString('nl-NL');
+        document.getElementById('infoTotalChunks').textContent = t.chunks.toLocaleString('nl-NL');
+        document.getElementById('infoTotalCost').textContent = `€${(t.cost * rate).toFixed(4).replace('.', ',')}`;
+
+        // Exchange rate info
+        const rateInfo = document.getElementById('exchangeRateInfo');
+        if (rateInfo) rateInfo.textContent = `Wisselkoers: 1 USD = ${rate.toFixed(4)} EUR`;
     }
 
     // Load info when Info tab is activated
@@ -3406,7 +3476,7 @@
     </script>
     <footer class="copyright-footer">
         <span>Copyright &copy; 2026 twinology.ai</span>
-        <span class="footer-version" id="footerVersion">v2.7.1 — Multimodal RAG Edition</span>
+        <span class="footer-version" id="footerVersion">v2.8.0 — Multimodal RAG Edition</span>
     </footer>
 </body>
 </html>

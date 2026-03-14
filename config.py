@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # ── Version ─────────────────────────────────────────────────────────
-VERSION = "2.7.1"
+VERSION = "2.8.0"
 VERSION_NAME = "Multimodal RAG Edition"
 
 BASE_DIR = Path(__file__).parent
@@ -34,6 +34,9 @@ EXTRACT_IMAGES = True           # Afbeeldingen uit PDF/DOCX extraheren en beschr
 IMAGE_MIN_SIZE = 50             # Minimum pixels (breedte/hoogte) — filtert iconen/bullets
 IMAGE_MAX_DIMENSION = 1024      # Maximale dimensie in pixels — resize voor vision API
 MAX_IMAGES_IN_CONTEXT = 3       # Maximaal aantal afbeeldingen meegestuurd per query
+
+# Token stats persistence
+TOKEN_STATS_FILE = BASE_DIR / "token_stats.json"
 
 # LLM settings
 CLAUDE_MODEL = "claude-sonnet-4-6"

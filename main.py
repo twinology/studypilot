@@ -22,7 +22,7 @@ import urllib.request
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -1235,6 +1235,83 @@ async def get_openrouter_models():
             return {"status": "ok", "models": models, "total": len(models)}
     except Exception as e:
         return {"status": "error", "models": [], "error": str(e)}
+
+
+# ── Token Stats Persistence ─────────────────────────────────────────
+
+def _load_token_stats() -> dict:
+    """Load cumulative token stats from disk."""
+    defaults = {"input": 0, "output": 0, "total": 0, "chunks": 0, "cost": 0, "calls": 0}
+    if config.TOKEN_STATS_FILE.exists():
+        try:
+            with open(config.TOKEN_STATS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Ensure all keys exist
+            for k, v in defaults.items():
+                data.setdefault(k, v)
+            return data
+        except Exception as e:
+            logger.warning(f"Kon token_stats.json niet laden: {e}")
+    return defaults
+
+
+def _save_token_stats(stats: dict) -> None:
+    """Save cumulative token stats to disk."""
+    try:
+        with open(config.TOKEN_STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Kon token_stats.json niet opslaan: {e}")
+
+
+@app.get("/api/token-stats")
+async def get_token_stats():
+    """Return persisted cumulative token stats."""
+    return _load_token_stats()
+
+
+@app.post("/api/token-stats")
+async def update_token_stats(request: Request):
+    """Add session delta to cumulative token stats."""
+    delta = await request.json()
+    current = _load_token_stats()
+    for key in ("input", "output", "total", "chunks", "cost", "calls"):
+        current[key] = current.get(key, 0) + delta.get(key, 0)
+    _save_token_stats(current)
+    return current
+
+
+# ── Exchange Rate ───────────────────────────────────────────────────
+
+_exchange_rate_cache = {"rate": None, "timestamp": 0}
+
+
+@app.get("/api/exchange-rate")
+async def get_exchange_rate():
+    """Fetch current USD to EUR exchange rate (cached for 1 hour)."""
+    import time
+    import httpx
+
+    now = time.time()
+    # Return cached rate if less than 1 hour old
+    if _exchange_rate_cache["rate"] and (now - _exchange_rate_cache["timestamp"]) < 3600:
+        return {"rate": _exchange_rate_cache["rate"], "cached": True}
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Free exchange rate API
+            resp = await client.get("https://api.exchangerate-api.com/v4/latest/USD")
+            resp.raise_for_status()
+            data = resp.json()
+            rate = data.get("rates", {}).get("EUR", 0.92)
+            _exchange_rate_cache["rate"] = rate
+            _exchange_rate_cache["timestamp"] = now
+            return {"rate": rate, "cached": False}
+    except Exception as e:
+        logger.warning(f"Wisselkoers ophalen mislukt: {e}")
+        # Fallback rate
+        fallback = _exchange_rate_cache["rate"] or 0.92
+        return {"rate": fallback, "cached": True, "fallback": True}
 
 
 @app.get("/")
