@@ -453,15 +453,15 @@ async def crawl_website(req: CrawlWebsiteRequest):
             raise HTTPException(401, "Tavily API key is ongeldig of verlopen.")
         raise HTTPException(502, f"Tavily crawl fout: {error_msg}")
 
-    # Process crawled pages
+    # Process crawled pages — combine all into a single document
     results = crawl_result.get("results", [])
     if not results:
         raise HTTPException(400, "Geen pagina's gevonden op deze website.")
 
-    indexed_pages = []
+    # Collect all page contents into one combined markdown document
+    combined_parts = [f"# Website crawl: {url}\n"]
+    page_details = []
     errors = []
-    total_chunks = 0
-    total_chars = 0
 
     for page in results:
         page_url = page.get("url", "")
@@ -469,71 +469,73 @@ async def crawl_website(req: CrawlWebsiteRequest):
         if not raw_content or not raw_content.strip():
             continue
 
-        # Generate filename from page URL
-        page_parsed = _urlparse(page_url)
-        path_part = page_parsed.path.strip("/").replace("/", "_")
-        if not path_part:
-            path_part = "index"
-        url_hash = hashlib.md5(page_url.encode()).hexdigest()[:6]
-        safe_name = re.sub(r'[^\w\-.]', '_', f"{domain}_{path_part}")
-        if len(safe_name) > 80:
-            safe_name = safe_name[:80]
-        filename = f"{safe_name}_{url_hash}.md"
+        # Get page title from content
+        page_title = ""
+        for line in raw_content.split("\n"):
+            line = line.strip()
+            if line.startswith("#"):
+                page_title = line.lstrip("#").strip()
+                break
+            elif line and not page_title:
+                page_title = line[:120]
+        if not page_title:
+            page_parsed = _urlparse(page_url)
+            page_title = page_parsed.path.strip("/").replace("/", " / ").title() or domain
 
-        # Save as markdown file
-        dest = config.DOCUMENTS_DIR / filename
-        try:
-            with open(dest, "w", encoding="utf-8") as f:
-                f.write(f"# Bron: {page_url}\n\n{raw_content}")
+        combined_parts.append(f"\n\n---\n\n## Bron: {page_url}\n\n{raw_content}")
+        page_details.append({
+            "url": page_url,
+            "title": page_title,
+            "characters": len(raw_content),
+            "content": raw_content[:5000],
+        })
 
-            text = load_document(dest)
-            if not text or not text.strip():
-                os.remove(dest)
-                continue
+    if not page_details:
+        raise HTTPException(400, "Kon geen content extraheren van deze website.")
 
-            chunks = chunk_text(text)
-            num_chunks = add_document(chunks, filename)
-            total_chunks += num_chunks
-            total_chars += len(text)
-            # Get page title from content (first heading or first line)
-            page_title = ""
-            for line in raw_content.split("\n"):
-                line = line.strip()
-                if line.startswith("#"):
-                    page_title = line.lstrip("#").strip()
-                    break
-                elif line and not page_title:
-                    page_title = line[:120]
-            if not page_title:
-                page_title = path_part.replace("_", " ").title()
+    combined_text = "\n".join(combined_parts)
 
-            indexed_pages.append({
-                "url": page_url,
-                "filename": filename,
-                "title": page_title,
-                "chunks": num_chunks,
-                "characters": len(text),
-                "content": raw_content[:5000],  # First 5000 chars for preview
-            })
-            logger.info(f"Crawl: geïndexeerd {page_url} -> {filename} ({len(text)} tekens, {num_chunks} chunks)")
-        except Exception as e:
-            errors.append({"url": page_url, "error": str(e)})
-            if dest.exists():
-                os.remove(dest)
+    # Generate a single filename for the entire crawl
+    path_part = parsed.path.strip("/").replace("/", "_")
+    if not path_part:
+        path_part = "site"
+    url_hash = hashlib.md5(url.encode()).hexdigest()[:6]
+    safe_name = re.sub(r'[^\w\-.]', '_', f"{domain}_{path_part}")
+    if len(safe_name) > 80:
+        safe_name = safe_name[:80]
+    filename = f"{safe_name}_{url_hash}.md"
 
-    if not indexed_pages:
-        raise HTTPException(400, "Kon geen pagina's indexeren van deze website.")
+    # Save the combined document
+    dest = config.DOCUMENTS_DIR / filename
+    try:
+        with open(dest, "w", encoding="utf-8") as f:
+            f.write(combined_text)
 
-    logger.info(f"Website gecrawld: {url} — {len(indexed_pages)} pagina's, {total_chunks} chunks, {total_chars} tekens")
+        text = load_document(dest)
+        if not text or not text.strip():
+            os.remove(dest)
+            raise HTTPException(400, "Kon geen tekst uit de gecrawlde pagina's extraheren.")
+
+        chunks = chunk_text(text)
+        total_chunks = add_document(chunks, filename)
+        total_chars = len(text)
+
+        logger.info(f"Website gecrawld: {url} -> {filename} ({len(page_details)} pagina's, {total_chunks} chunks, {total_chars} tekens)")
+
+    except ValueError as e:
+        if dest.exists():
+            os.remove(dest)
+        raise HTTPException(400, str(e))
 
     return {
         "status": "ok",
         "base_url": url,
+        "filename": filename,
         "pages_found": len(results),
-        "pages_indexed": len(indexed_pages),
+        "pages_indexed": len(page_details),
         "total_chunks": total_chunks,
         "total_characters": total_chars,
-        "pages": indexed_pages,
+        "pages": page_details,
         "errors": errors,
     }
 
