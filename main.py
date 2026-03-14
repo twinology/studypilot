@@ -390,6 +390,144 @@ async def upload_url(req: UrlUploadRequest):
         raise HTTPException(400, str(e))
 
 
+class CrawlWebsiteRequest(BaseModel):
+    url: str
+    max_depth: int = 3
+    max_pages: int = 50
+
+
+@app.post("/api/crawl-website")
+async def crawl_website(req: CrawlWebsiteRequest):
+    """Crawl an entire website using Tavily and index all pages into the knowledge base."""
+    from urllib.parse import urlparse as _urlparse
+
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(400, "URL mag niet leeg zijn.")
+
+    parsed = _urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Alleen HTTP en HTTPS URLs zijn toegestaan.")
+
+    # Get Tavily API key from settings
+    settings = load_settings()
+    tavily_key = settings.get("tavily_api_key", "").strip()
+    if not tavily_key:
+        raise HTTPException(400, "Tavily API key is niet geconfigureerd. Stel deze in bij Setup.")
+
+    try:
+        from tavily import TavilyClient
+    except ImportError:
+        raise HTTPException(500, "tavily-python is niet geïnstalleerd. Run: pip install tavily-python")
+
+    domain = parsed.netloc.replace("www.", "")
+
+    # Run Tavily crawl in a thread to not block the event loop
+    def _do_crawl():
+        client = TavilyClient(api_key=tavily_key)
+        result = client.crawl(
+            url=url,
+            max_depth=req.max_depth,
+            max_breadth=20,
+            limit=req.max_pages,
+            format="markdown",
+            extract_depth="advanced",
+        )
+        return result
+
+    try:
+        crawl_result = await asyncio.to_thread(_do_crawl)
+    except Exception as e:
+        error_msg = str(e)
+        if "401" in error_msg or "unauthorized" in error_msg.lower():
+            raise HTTPException(401, "Tavily API key is ongeldig of verlopen.")
+        raise HTTPException(502, f"Tavily crawl fout: {error_msg}")
+
+    # Process crawled pages
+    results = crawl_result.get("results", [])
+    if not results:
+        raise HTTPException(400, "Geen pagina's gevonden op deze website.")
+
+    indexed_pages = []
+    errors = []
+    total_chunks = 0
+    total_chars = 0
+
+    for page in results:
+        page_url = page.get("url", "")
+        raw_content = page.get("raw_content", "") or page.get("content", "")
+        if not raw_content or not raw_content.strip():
+            continue
+
+        # Generate filename from page URL
+        page_parsed = _urlparse(page_url)
+        path_part = page_parsed.path.strip("/").replace("/", "_")
+        if not path_part:
+            path_part = "index"
+        url_hash = hashlib.md5(page_url.encode()).hexdigest()[:6]
+        safe_name = re.sub(r'[^\w\-.]', '_', f"{domain}_{path_part}")
+        if len(safe_name) > 80:
+            safe_name = safe_name[:80]
+        filename = f"{safe_name}_{url_hash}.md"
+
+        # Save as markdown file
+        dest = config.DOCUMENTS_DIR / filename
+        try:
+            with open(dest, "w", encoding="utf-8") as f:
+                f.write(f"# Bron: {page_url}\n\n{raw_content}")
+
+            text = load_document(dest)
+            if not text or not text.strip():
+                os.remove(dest)
+                continue
+
+            chunks = chunk_text(text)
+            num_chunks = add_document(chunks, filename)
+            total_chunks += num_chunks
+            total_chars += len(text)
+            # Get page title from content (first heading or first line)
+            page_title = ""
+            for line in raw_content.split("\n"):
+                line = line.strip()
+                if line.startswith("#"):
+                    page_title = line.lstrip("#").strip()
+                    break
+                elif line and not page_title:
+                    page_title = line[:120]
+            if not page_title:
+                page_title = path_part.replace("_", " ").title()
+
+            indexed_pages.append({
+                "url": page_url,
+                "filename": filename,
+                "title": page_title,
+                "chunks": num_chunks,
+                "characters": len(text),
+                "content": raw_content[:5000],  # First 5000 chars for preview
+            })
+            logger.info(f"Crawl: geïndexeerd {page_url} -> {filename} ({len(text)} tekens, {num_chunks} chunks)")
+        except Exception as e:
+            errors.append({"url": page_url, "error": str(e)})
+            if dest.exists():
+                os.remove(dest)
+
+    if not indexed_pages:
+        raise HTTPException(400, "Kon geen pagina's indexeren van deze website.")
+
+    logger.info(f"Website gecrawld: {url} — {len(indexed_pages)} pagina's, {total_chunks} chunks, {total_chars} tekens")
+
+    return {
+        "status": "ok",
+        "base_url": url,
+        "pages_found": len(results),
+        "pages_indexed": len(indexed_pages),
+        "total_chunks": total_chunks,
+        "total_characters": total_chars,
+        "pages": indexed_pages,
+        "errors": errors,
+    }
+
+
 @app.get("/api/documents")
 async def get_documents():
     """List all uploaded documents (files on disk + index status)."""
@@ -1011,6 +1149,7 @@ class SettingsRequest(BaseModel):
     elevenlabs_api_key: str = ""
     ollama_base_url: str = ""
     openrouter_api_key: str = ""
+    tavily_api_key: str = ""
     user_name: str = ""
     user_education: str = ""
     user_start_year: str = ""
@@ -1044,6 +1183,8 @@ async def get_settings():
         "ollama_base_url": s.get("ollama_base_url", "http://localhost:11434"),
         "openrouter_api_key_set": bool(or_key),
         "openrouter_api_key_masked": masked_or,
+        "tavily_api_key_set": bool(s.get("tavily_api_key", "")),
+        "tavily_api_key_masked": (lambda k: (k[:4] + "..." + k[-4:]) if len(k) > 8 else ("***" if k else ""))(s.get("tavily_api_key", "")),
         "user_name": s.get("user_name", ""),
         "user_education": s.get("user_education", ""),
         "user_start_year": s.get("user_start_year", ""),
@@ -1065,6 +1206,8 @@ async def update_settings(req: SettingsRequest):
         new_settings["ollama_base_url"] = req.ollama_base_url
     if req.openrouter_api_key:
         new_settings["openrouter_api_key"] = req.openrouter_api_key
+    if req.tavily_api_key:
+        new_settings["tavily_api_key"] = req.tavily_api_key
     # User profile (always save, even if empty to allow clearing)
     new_settings["user_name"] = req.user_name.strip()
     new_settings["user_education"] = req.user_education.strip()

@@ -221,6 +221,202 @@
             font-size: 14px;
             border-radius: 10px;
         }
+        /* ── Crawl Overview Modal ──────────────── */
+        .crawl-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .crawl-modal-overlay.active {
+            display: flex;
+        }
+        .crawl-modal {
+            background: var(--bg);
+            border-radius: 16px;
+            width: 95%;
+            max-width: 1100px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .crawl-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+        }
+        .crawl-modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .crawl-modal-header .crawl-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        .crawl-modal-header .crawl-stats span {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+        .crawl-modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .crawl-modal-close:hover {
+            background: rgba(255,255,255,0.35);
+        }
+        .crawl-modal-body {
+            overflow-y: auto;
+            padding: 20px 24px;
+            flex: 1;
+        }
+        .crawl-page-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .crawl-page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 12px;
+        }
+        .crawl-page-header:hover {
+            background: var(--bg);
+        }
+        .crawl-page-title {
+            font-weight: 600;
+            font-size: 15px;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .crawl-page-url {
+            font-size: 12px;
+            color: var(--text-muted);
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .crawl-page-meta {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .crawl-page-meta span {
+            background: var(--bg);
+            padding: 3px 8px;
+            border-radius: 8px;
+            color: var(--text-muted);
+        }
+        .crawl-page-toggle {
+            font-size: 14px;
+            transition: transform 0.3s;
+            flex-shrink: 0;
+        }
+        .crawl-page-toggle.open {
+            transform: rotate(180deg);
+        }
+        .crawl-page-content {
+            display: none;
+            padding: 0 16px 16px;
+            border-top: 1px solid var(--border);
+        }
+        .crawl-page-content.open {
+            display: block;
+        }
+        .crawl-page-content .crawl-rendered {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text);
+        }
+        .crawl-rendered h1, .crawl-rendered h2, .crawl-rendered h3,
+        .crawl-rendered h4, .crawl-rendered h5 {
+            margin: 16px 0 8px;
+            color: var(--primary);
+        }
+        .crawl-rendered h1 { font-size: 20px; border-bottom: 2px solid var(--primary); padding-bottom: 6px; }
+        .crawl-rendered h2 { font-size: 17px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+        .crawl-rendered h3 { font-size: 15px; }
+        .crawl-rendered h4 { font-size: 14px; }
+        .crawl-rendered p { margin: 8px 0; }
+        .crawl-rendered ul, .crawl-rendered ol { margin: 8px 0; padding-left: 24px; }
+        .crawl-rendered li { margin: 4px 0; }
+        .crawl-rendered strong { color: var(--text); }
+        .crawl-rendered a { color: var(--primary); text-decoration: underline; }
+        .crawl-rendered code {
+            background: var(--bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Fira Code', monospace;
+        }
+        .crawl-rendered pre {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            margin: 8px 0;
+        }
+        .crawl-rendered blockquote {
+            border-left: 3px solid var(--primary);
+            margin: 8px 0;
+            padding: 8px 16px;
+            background: var(--bg);
+            border-radius: 0 8px 8px 0;
+            color: var(--text-muted);
+        }
+        .crawl-rendered table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+        .crawl-rendered th, .crawl-rendered td {
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+            text-align: left;
+        }
+        .crawl-rendered th {
+            background: var(--bg);
+            font-weight: 600;
+        }
+
         .doc-list { list-style: none; }
         .doc-item {
             display: flex;
@@ -1054,6 +1250,21 @@
                 <input type="url" id="urlInput" placeholder="https://voorbeeld.nl/artikel — voer een URL in om een webpagina te indexeren" autocomplete="off">
                 <button class="btn btn-primary" id="urlUploadBtn" title="Webpagina ophalen en indexeren">Indexeer URL</button>
             </div>
+            <div class="url-upload-bar" style="margin-top:4px">
+                <input type="url" id="crawlInput" placeholder="https://voorbeeld.nl — crawl een hele website (alle subpagina's)" autocomplete="off">
+                <button class="btn btn-primary" id="crawlBtn" title="Hele website crawlen en indexeren via Tavily" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);min-width:140px">
+                    🕷️ Crawl Site
+                </button>
+            </div>
+            <div id="crawlProgress" style="display:none;margin:8px 0;padding:10px 14px;background:var(--bg-secondary);border-radius:10px;font-size:13px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <span class="thinking-dots" style="font-size:16px"><span>.</span><span>.</span><span>.</span></span>
+                    <span id="crawlProgressText">Website wordt gecrawld...</span>
+                </div>
+                <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+                    <div id="crawlProgressInner" style="height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);width:0%;transition:width 0.5s ease;border-radius:2px"></div>
+                </div>
+            </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
                 <h3>Geüploade documenten</h3>
                 <button class="btn btn-sm" id="reindexBtn" style="background:#8b5cf6;color:#fff;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;border:none" title="Alle documenten opnieuw indexeren met het huidige embedding model">⟳ Herindexeer</button>
@@ -1231,6 +1442,18 @@
             </div>
 
             <div class="setup-section">
+                <h3>🕷️ Tavily Web Crawling (optioneel)</h3>
+                <div class="setup-field">
+                    <label for="setupTavilyKey">
+                        Tavily API Key
+                        <span class="setup-status" id="tavilyKeyStatus"></span>
+                    </label>
+                    <input type="password" id="setupTavilyKey" placeholder="tvly-...">
+                    <div class="field-hint">Nodig voor het crawlen van hele websites. Verkrijgbaar via <a href="https://tavily.com" target="_blank" style="color:var(--primary)">tavily.com</a></div>
+                </div>
+            </div>
+
+            <div class="setup-section">
                 <h3>👤 Gebruikersprofiel</h3>
                 <div class="setup-row">
                     <div class="setup-field">
@@ -1293,7 +1516,7 @@
                 <img src="/images/logo.png" alt="StudyPilot" class="info-hero-logo">
                 <div class="info-hero-text">
                     <h2>StudyPilot</h2>
-                    <span class="version-tag" id="infoVersionTag">v2.8.0</span>
+                    <span class="version-tag" id="infoVersionTag">v2.9.0</span>
                     <p>Minder zoeken, meer oefenen en sneller leren!</p>
                 </div>
             </div>
@@ -1317,6 +1540,7 @@
                     <span class="info-tag">Spraak in/uit (ElevenLabs / browser TTS)</span>
                     <span class="info-tag">Multimodal (afbeeldingen uit PDF/DOCX)</span>
                     <span class="info-tag">URL-indexering van webpagina's</span>
+                    <span class="info-tag">Website crawling (Tavily)</span>
                     <span class="info-tag">Telegram bot</span>
                     <span class="info-tag">Multi-provider AI (Anthropic / OpenAI / Ollama)</span>
                     <span class="info-tag">Rapport export (PDF / DOCX / Markdown)</span>
@@ -1538,6 +1762,19 @@
             <button class="close-btn" id="closeFeedback">&times;</button>
             <h2>Feedback op je oefensessie</h2>
             <div id="feedbackText"></div>
+        </div>
+    </div>
+
+    <!-- Crawl Overview Modal -->
+    <div class="crawl-modal-overlay" id="crawlModal">
+        <div class="crawl-modal">
+            <div class="crawl-modal-header">
+                <h2>🕷️ Crawl Overzicht</h2>
+                <div class="crawl-stats" id="crawlModalStats"></div>
+                <button class="crawl-modal-close" id="crawlModalClose" title="Sluiten">&times;</button>
+            </div>
+            <div class="crawl-modal-body" id="crawlModalBody">
+            </div>
         </div>
     </div>
 
@@ -1885,6 +2122,216 @@
         if (e.key === 'Enter') {
             e.preventDefault();
             document.getElementById('urlUploadBtn').click();
+        }
+    });
+
+    // ── Markdown to HTML converter (lightweight) ──────────────────
+    function _mdToHtml(md) {
+        if (!md) return '<p style="color:var(--text-muted)">Geen content beschikbaar</p>';
+        let html = md;
+        // Escape HTML entities first
+        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Code blocks (``` ... ```)
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+            `<pre><code>${code.trim()}</code></pre>`
+        );
+        // Tables
+        html = html.replace(/^(\|.+\|)\n(\|[-:\s|]+\|)\n((?:\|.+\|\n?)*)/gm, (_, header, sep, body) => {
+            const ths = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+            const rows = body.trim().split('\n').map(row => {
+                const tds = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
+        });
+        // Headers
+        html = html.replace(/^##### (.+)$/gm, '<h5>$1</h5>');
+        html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+        html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+        // Blockquotes
+        html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+        // Bold & italic
+        html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // Links
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+        // Unordered lists
+        html = html.replace(/^[\s]*[-*] (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+        // Ordered lists
+        html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+        // Horizontal rules
+        html = html.replace(/^---+$/gm, '<hr>');
+        // Paragraphs: wrap remaining text lines
+        html = html.replace(/^(?!<[huplbota]|<li|<hr|<pre|<code|<blockquote|<table|<thead|<tbody|<tr|<td|<th)(.+)$/gm, '<p>$1</p>');
+        // Clean up empty paragraphs
+        html = html.replace(/<p>\s*<\/p>/g, '');
+        return html;
+    }
+
+    // ── Crawl Overview Modal ────────────────────────────────────────
+    function _showCrawlOverview(data) {
+        const modal = document.getElementById('crawlModal');
+        const stats = document.getElementById('crawlModalStats');
+        const body = document.getElementById('crawlModalBody');
+
+        // Stats
+        stats.innerHTML = `
+            <span>📄 ${data.pages_indexed} pagina's</span>
+            <span>🧩 ${data.total_chunks} chunks</span>
+            <span>📝 ${data.total_characters.toLocaleString()} tekens</span>
+        `;
+
+        // Build page cards
+        let cardsHtml = '';
+        data.pages.forEach((page, idx) => {
+            const renderedContent = _mdToHtml(page.content || '');
+            cardsHtml += `
+                <div class="crawl-page-card">
+                    <div class="crawl-page-header" onclick="this.querySelector('.crawl-page-toggle').classList.toggle('open'); this.nextElementSibling.classList.toggle('open');">
+                        <span class="crawl-page-title">${page.title || 'Onbekende pagina'}</span>
+                        <span class="crawl-page-url" title="${page.url}">${page.url}</span>
+                        <div class="crawl-page-meta">
+                            <span>${page.chunks} chunks</span>
+                            <span>${page.characters.toLocaleString()} tekens</span>
+                        </div>
+                        <span class="crawl-page-toggle">▼</span>
+                    </div>
+                    <div class="crawl-page-content">
+                        <div class="crawl-rendered">${renderedContent}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        if (data.errors && data.errors.length > 0) {
+            cardsHtml += '<h3 style="color:#ef4444;margin:16px 0 8px">⚠️ Fouten</h3>';
+            data.errors.forEach(err => {
+                cardsHtml += `<div style="padding:8px 12px;background:#fef2f2;border-radius:8px;margin-bottom:8px;font-size:13px;color:#991b1b">
+                    <strong>${err.url}</strong>: ${err.error}
+                </div>`;
+            });
+        }
+
+        body.innerHTML = cardsHtml;
+        modal.classList.add('active');
+    }
+
+    // Close crawl modal
+    document.getElementById('crawlModalClose').addEventListener('click', () => {
+        document.getElementById('crawlModal').classList.remove('active');
+    });
+    document.getElementById('crawlModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            e.currentTarget.classList.remove('active');
+        }
+    });
+
+    // ── Website Crawl (Tavily) ──────────────────────────────────────
+    document.getElementById('crawlBtn').addEventListener('click', async () => {
+        const crawlInput = document.getElementById('crawlInput');
+        const url = crawlInput.value.trim();
+        if (!url) {
+            showStatus('Voer een website URL in om te crawlen', 'error');
+            crawlInput.focus();
+            return;
+        }
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            showStatus('URL moet beginnen met http:// of https://', 'error');
+            crawlInput.focus();
+            return;
+        }
+
+        const btn = document.getElementById('crawlBtn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Crawlen...';
+
+        // Show crawl progress
+        const prog = document.getElementById('crawlProgress');
+        const progText = document.getElementById('crawlProgressText');
+        const progBar = document.getElementById('crawlProgressInner');
+        prog.style.display = 'block';
+        progText.textContent = `Website wordt gecrawld: ${url}`;
+        progBar.style.width = '10%';
+
+        // Animate progress bar slowly
+        let progWidth = 10;
+        const progInterval = setInterval(() => {
+            if (progWidth < 85) {
+                progWidth += Math.random() * 3;
+                progBar.style.width = progWidth + '%';
+            }
+        }, 2000);
+
+        // Update status text periodically
+        const statusTexts = [
+            'Pagina\'s worden ontdekt...',
+            'Subpagina\'s worden geladen...',
+            'Content wordt geëxtraheerd...',
+            'Tekst wordt verwerkt...',
+            'Documenten worden geïndexeerd...',
+        ];
+        let statusIdx = 0;
+        const statusInterval = setInterval(() => {
+            statusIdx = (statusIdx + 1) % statusTexts.length;
+            progText.textContent = statusTexts[statusIdx];
+        }, 5000);
+
+        try {
+            const res = await fetch(`${API}/api/crawl-website`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, max_depth: 3, max_pages: 50 })
+            });
+            const data = await res.json();
+
+            clearInterval(progInterval);
+            clearInterval(statusInterval);
+
+            if (!res.ok) {
+                throw new Error(data.detail || 'Fout bij crawlen van website');
+            }
+
+            progBar.style.width = '100%';
+            progText.textContent = `✅ ${data.pages_indexed} pagina's geïndexeerd (${data.total_chunks} chunks, ${data.total_characters.toLocaleString()} tekens)`;
+
+            setTimeout(() => {
+                prog.style.display = 'none';
+                progBar.style.width = '0%';
+            }, 3000);
+
+            crawlInput.value = '';
+            loadDocuments();
+            showStatus(
+                `Website gecrawld: ${data.pages_indexed}/${data.pages_found} pagina's geïndexeerd (${data.total_chunks} chunks)` +
+                (data.errors.length ? ` — ${data.errors.length} fouten` : ''),
+                'success', 10000
+            );
+
+            // Show crawl overview modal
+            _showCrawlOverview(data);
+        } catch (err) {
+            clearInterval(progInterval);
+            clearInterval(statusInterval);
+            prog.style.display = 'none';
+            progBar.style.width = '0%';
+            showStatus(`Crawl fout: ${err.message}`, 'error', 8000);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '🕷️ Crawl Site';
+        }
+    });
+
+    // Enter key on crawl input
+    document.getElementById('crawlInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('crawlBtn').click();
         }
     });
 
@@ -3248,6 +3695,19 @@
                 orKeyInput.dataset.set = '';
             }
 
+            // Load Tavily key status
+            const tavilyKeyInput = document.getElementById('setupTavilyKey');
+            const tavilyKeyStatus = document.getElementById('tavilyKeyStatus');
+            if (data.tavily_api_key_set) {
+                tavilyKeyInput.placeholder = data.tavily_api_key_masked;
+                tavilyKeyStatus.textContent = '✓ Ingesteld';
+                tavilyKeyStatus.className = 'setup-status ok';
+            } else {
+                tavilyKeyInput.placeholder = 'tvly-...';
+                tavilyKeyStatus.textContent = 'Optioneel';
+                tavilyKeyStatus.className = 'setup-status';
+            }
+
             // Update inline key fields after provider config is rendered
             _updateInlineKeyStatus();
 
@@ -3324,6 +3784,9 @@
             const orKey = document.getElementById('setupOpenRouterKey').value.trim();
             if (orKey) payload.openrouter_api_key = orKey;
         }
+        // Tavily key
+        const tavilyKey = document.getElementById('setupTavilyKey').value.trim();
+        if (tavilyKey) payload.tavily_api_key = tavilyKey;
         // User profile
         payload.user_name = document.getElementById('setupUserName').value.trim();
         payload.user_education = document.getElementById('setupEducation').value.trim();
@@ -3347,6 +3810,7 @@
             document.getElementById('setupAiKey').value = '';
             document.getElementById('setupElKey').value = '';
             document.getElementById('setupOpenRouterKey').value = '';
+            document.getElementById('setupTavilyKey').value = '';
             const inlineAi = document.getElementById('setupAiKeyInline');
             if (inlineAi) inlineAi.value = '';
             const inlineOr = document.getElementById('setupOrKeyInline');
@@ -3476,7 +3940,7 @@
     </script>
     <footer class="copyright-footer">
         <span>Copyright &copy; 2026 twinology.ai</span>
-        <span class="footer-version" id="footerVersion">v2.8.0 — Multimodal RAG Edition</span>
+        <span class="footer-version" id="footerVersion">v2.9.0 — Multimodal RAG Edition</span>
     </footer>
 </body>
 </html>

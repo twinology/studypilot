@@ -22,6 +22,7 @@ _DEFAULTS = {
     "elevenlabs_api_key": "",
     "ollama_base_url": "http://localhost:11434",
     "openrouter_api_key": "",
+    "tavily_api_key": "",
 }
 
 
