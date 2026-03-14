@@ -195,6 +195,32 @@
         }
         .upload-zone h3 { margin-bottom: 8px; font-size: 16px; }
         .upload-zone p { color: var(--text-muted); font-size: 13px; }
+        .url-upload-bar {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+            align-items: center;
+        }
+        .url-upload-bar input[type="url"] {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 14px;
+            background: var(--bg);
+            color: var(--text);
+            transition: border-color 0.2s;
+        }
+        .url-upload-bar input[type="url"]:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .url-upload-bar .btn {
+            white-space: nowrap;
+            padding: 10px 18px;
+            font-size: 14px;
+            border-radius: 10px;
+        }
         .doc-list { list-style: none; }
         .doc-item {
             display: flex;
@@ -316,6 +342,40 @@
             overflow-x: auto; margin: 8px 0;
         }
         .message.bot pre code { background: none; padding: 0; }
+        /* ── Thinking indicator ──── */
+        .thinking-indicator {
+            align-self: flex-start;
+            background: var(--chat-bot);
+            border-radius: 12px; border-bottom-left-radius: 4px;
+            padding: 14px 20px;
+            display: flex; align-items: center; gap: 12px;
+            max-width: 280px;
+            animation: fadeInUp 0.3s ease;
+        }
+        .thinking-dots {
+            display: flex; gap: 5px;
+        }
+        .thinking-dots span {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0.4;
+            animation: thinkingBounce 1.4s ease-in-out infinite;
+        }
+        .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+        .thinking-text {
+            font-size: 13px; color: #888;
+            font-style: italic;
+        }
+        @keyframes thinkingBounce {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1.1); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         .context-line {
             font-style: italic;
             color: #3a7c22;
@@ -782,7 +842,7 @@
         .log-module { color: var(--primary); white-space: nowrap; }
 
         /* ── Setup panel ──────────────────────── */
-        .setup-panel { padding: 24px; overflow-y: auto; max-width: 600px; }
+        .setup-panel { padding: 24px 32px; overflow-y: auto; max-width: 860px; }
         .setup-panel h2 { font-size: 18px; margin-bottom: 16px; }
         .setup-section {
             background: var(--surface);
@@ -813,14 +873,26 @@
         }
         .setup-status.ok { color: var(--success); }
         .setup-status.missing { color: var(--danger); }
-        .provider-radios { display: flex; gap: 12px; margin-bottom: 14px; }
+        .provider-radios { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
         .provider-radio {
-            flex: 1; padding: 12px 16px; border: 2px solid var(--border);
-            border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.2s;
+            flex: 1; min-width: 140px; padding: 14px 16px; border: 2px solid var(--border);
+            border-radius: 10px; cursor: pointer; text-align: center; transition: all 0.2s;
         }
-        .provider-radio.selected { border-color: var(--primary); background: #eff6ff; }
+        .provider-radio:hover { border-color: #93c5fd; background: #f8fafc; }
+        .provider-radio.selected { border-color: var(--primary); background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .provider-radio .provider-icon { font-size: 22px; margin-bottom: 4px; }
         .provider-radio .provider-name { font-weight: 600; font-size: 14px; }
         .provider-radio .provider-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .provider-config {
+            background: #f8fafc; border: 1px dashed var(--border); border-radius: 8px;
+            padding: 16px 20px; margin-top: 12px; margin-bottom: 14px;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        .provider-config h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--text-muted); }
+        .setup-row { display: flex; gap: 16px; align-items: flex-start; }
+        .setup-row > .setup-field { flex: 1; }
+        .setup-row > .setup-field.narrow { flex: 0 0 200px; }
 
         /* ── Lockdown ─────────────────────────── */
         .lockdown-banner {
@@ -978,6 +1050,10 @@
                 <p style="margin-top:8px;font-size:12px;">PDF, Word, TXT, Markdown, HTML</p>
                 <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.txt,.md,.html,.htm" style="display:none">
             </div>
+            <div class="url-upload-bar">
+                <input type="url" id="urlInput" placeholder="https://voorbeeld.nl/artikel — voer een URL in om een webpagina te indexeren" autocomplete="off">
+                <button class="btn btn-primary" id="urlUploadBtn" title="Webpagina ophalen en indexeren">Indexeer URL</button>
+            </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
                 <h3>Geüploade documenten</h3>
                 <button class="btn btn-sm" id="reindexBtn" style="background:#8b5cf6;color:#fff;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;border:none" title="Alle documenten opnieuw indexeren met het huidige embedding model">⟳ Herindexeer</button>
@@ -1108,50 +1184,42 @@
                 <h3>AI Provider</h3>
                 <div class="provider-radios" id="providerRadios">
                     <div class="provider-radio selected" data-provider="anthropic">
+                        <div class="provider-icon">🟣</div>
                         <div class="provider-name">Anthropic</div>
                         <div class="provider-desc">Claude (Sonnet, Haiku, Opus)</div>
                     </div>
                     <div class="provider-radio" data-provider="openai">
+                        <div class="provider-icon">🟢</div>
                         <div class="provider-name">OpenAI</div>
-                        <div class="provider-desc">GPT-4o, GPT-4, GPT-3.5</div>
+                        <div class="provider-desc">GPT-5, GPT-4o, o3, o4</div>
+                    </div>
+                    <div class="provider-radio" data-provider="openrouter">
+                        <div class="provider-icon">🌐</div>
+                        <div class="provider-name">OpenRouter</div>
+                        <div class="provider-desc">300+ modellen — alle providers</div>
                     </div>
                     <div class="provider-radio" data-provider="ollama">
-                        <div class="provider-name">🏠 Ollama</div>
+                        <div class="provider-icon">🏠</div>
+                        <div class="provider-name">Ollama</div>
                         <div class="provider-desc">Lokaal — geen API-key nodig</div>
                     </div>
                 </div>
 
+                <!-- Dynamic provider config area -->
+                <div id="providerConfigArea"></div>
+
                 <div class="setup-field">
                     <label for="setupModel">Model</label>
+                    <div id="modelSearchRow" style="display:none;margin-bottom:8px;">
+                        <input type="text" id="openrouterSearch" placeholder="🔍 Zoek model... bijv. claude, gpt, llama, gemini">
+                    </div>
                     <select id="setupModel"></select>
-                    <div class="field-hint">Het AI-model dat gebruikt wordt voor chat, scenarios en feedback.</div>
-                </div>
-
-                <div class="setup-field">
-                    <label for="setupAiKey">
-                        API Key
-                        <span class="setup-status" id="aiKeyStatus"></span>
-                    </label>
-                    <input type="password" id="setupAiKey" placeholder="sk-...">
-                    <div class="field-hint">Je API key van Anthropic of OpenAI. Wordt lokaal opgeslagen in settings.json.</div>
-                </div>
-            </div>
-
-            <div class="setup-section" id="ollamaSection" style="display:none;">
-                <h3>🏠 Ollama configuratie</h3>
-                <div class="setup-field">
-                    <label for="setupOllamaUrl">Ollama URL</label>
-                    <input type="text" id="setupOllamaUrl" value="http://localhost:11434" placeholder="http://localhost:11434">
-                    <div class="field-hint">URL van je lokale Ollama server. Start Ollama met: <code>ollama serve</code></div>
-                </div>
-                <div class="setup-field">
-                    <label>Beschikbare modellen <button class="btn btn-sm btn-secondary" id="refreshOllamaModels" style="margin-left:8px;font-size:11px;padding:2px 8px;">↻ Vernieuwen</button></label>
-                    <div id="ollamaModelList" style="font-size:12px;color:var(--text-muted);margin-top:4px;">Klik op vernieuwen om modellen op te halen...</div>
+                    <div class="field-hint" id="modelHint">Het AI-model dat gebruikt wordt voor chat, scenarios en feedback.</div>
                 </div>
             </div>
 
             <div class="setup-section">
-                <h3>ElevenLabs (optioneel)</h3>
+                <h3>🔊 ElevenLabs (optioneel)</h3>
                 <div class="setup-field">
                     <label for="setupElKey">
                         ElevenLabs API Key
@@ -1162,8 +1230,38 @@
                 </div>
             </div>
 
-            <button class="btn btn-primary" id="setupSaveBtn">Opslaan</button>
+            <div class="setup-section">
+                <h3>👤 Gebruikersprofiel</h3>
+                <div class="setup-row">
+                    <div class="setup-field">
+                        <label for="setupUserName">Roepnaam</label>
+                        <input type="text" id="setupUserName" placeholder="Bijv. Jan, Maria, ...">
+                        <div class="field-hint">StudyPilot spreekt je hiermee aan.</div>
+                    </div>
+                    <div class="setup-field">
+                        <label for="setupEducation">Opleiding</label>
+                        <input type="text" id="setupEducation" placeholder="Bijv. HBO Verpleegkunde, WO Psychologie, ...">
+                        <div class="field-hint">Je opleiding of studierichting.</div>
+                    </div>
+                    <div class="setup-field narrow">
+                        <label for="setupStartYear">Startjaar</label>
+                        <input type="text" id="setupStartYear" placeholder="Bijv. 2024">
+                        <div class="field-hint">Wanneer gestart?</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="setupSaveBtn">💾 Opslaan</button>
             <span id="setupSaveStatus" style="margin-left:12px;font-size:13px;"></span>
+
+            <!-- Hidden elements for backwards compatibility -->
+            <div style="display:none;">
+                <input type="text" id="setupOllamaUrl" value="http://localhost:11434">
+                <input type="password" id="setupAiKey">
+                <input type="password" id="setupOpenRouterKey">
+                <div id="ollamaModelList"></div>
+                <div id="openrouterModelList"></div>
+            </div>
         </div>
 
         <!-- ── Logs ──────────────────────────────────── -->
@@ -1195,8 +1293,33 @@
                 <img src="/images/logo.png" alt="StudyPilot" class="info-hero-logo">
                 <div class="info-hero-text">
                     <h2>StudyPilot</h2>
-                    <span class="version-tag" id="infoVersionTag">v2.1.1</span>
+                    <span class="version-tag" id="infoVersionTag">v2.7.0</span>
                     <p>Minder zoeken, meer oefenen en sneller leren!</p>
+                </div>
+            </div>
+
+            <!-- About StudyPilot -->
+            <div class="info-card" style="max-width:1000px;margin-bottom:24px;">
+                <div class="info-card-header">
+                    <span class="info-card-icon">📖</span>
+                    <div>
+                        <div class="info-card-title">Over StudyPilot</div>
+                        <div class="info-card-subtitle">AI-gestuurde studietutor</div>
+                    </div>
+                </div>
+                <p style="font-size:14px;line-height:1.7;color:var(--text);margin:0 0 12px 0;">
+                    StudyPilot is een AI-gestuurde studietutor die je helpt bij het leren door middel van intelligente documentanalyse en interactieve oefensessies. Upload je studiemateriaal en stel vragen, oefen gesprekken met AI-acteurs, of maak toetsen — allemaal op basis van jouw eigen kennisbank.
+                </p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <span class="info-tag">RAG-chat over eigen documenten</span>
+                    <span class="info-tag">Oefensessies met AI-acteurs</span>
+                    <span class="info-tag">Toetsen (MC &amp; open vragen)</span>
+                    <span class="info-tag">Spraak in/uit (ElevenLabs / browser TTS)</span>
+                    <span class="info-tag">Multimodal (afbeeldingen uit PDF/DOCX)</span>
+                    <span class="info-tag">URL-indexering van webpagina's</span>
+                    <span class="info-tag">Telegram bot</span>
+                    <span class="info-tag">Multi-provider AI (Anthropic / OpenAI / Ollama)</span>
+                    <span class="info-tag">Rapport export (PDF / DOCX / Markdown)</span>
                 </div>
             </div>
 
@@ -1215,6 +1338,20 @@
                     <div class="info-row"><span class="info-label">Licentie</span><span class="info-value"><span class="info-badge green">MIT</span></span></div>
                     <div class="info-row"><span class="info-label">Auteur</span><span class="info-value">twinology.ai</span></div>
                     <div class="info-row"><span class="info-label">Repository</span><span class="info-value"><a class="info-link" href="https://github.com/twinology/studypilot" target="_blank">GitHub ↗</a></span></div>
+                </div>
+
+                <!-- User Profile -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">👤</span>
+                        <div>
+                            <div class="info-card-title">Gebruiker</div>
+                            <div class="info-card-subtitle">Profiel &amp; opleiding</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">Roepnaam</span><span class="info-value" id="infoUserName"><em style="color:var(--text-muted)">Niet ingesteld</em></span></div>
+                    <div class="info-row"><span class="info-label">Opleiding</span><span class="info-value" id="infoUserEducation"><em style="color:var(--text-muted)">Niet ingesteld</em></span></div>
+                    <div class="info-row"><span class="info-label">Startjaar</span><span class="info-value" id="infoUserStartYear"><em style="color:var(--text-muted)">Niet ingesteld</em></span></div>
                 </div>
 
                 <!-- Active Config -->
@@ -1247,7 +1384,7 @@
                             <div class="info-provider-name">🟣 Anthropic</div>
                             <div class="info-provider-desc">Claude AI — state-of-the-art reasoning</div>
                             <div class="info-provider-models">
-                                Claude Sonnet 4.6 · Sonnet 4<br>Haiku 4 · Opus 4
+                                Sonnet 4.6 · Opus 4.6<br>Sonnet 4 · Opus 4 · Haiku 4
                             </div>
                             <div class="info-tag-row" style="justify-content:center;margin-top:8px;">
                                 <span class="info-tag">Vision</span>
@@ -1260,14 +1397,27 @@
                             <div class="info-provider-name">🟢 OpenAI</div>
                             <div class="info-provider-desc">GPT-modellen — breed ecosysteem</div>
                             <div class="info-provider-models">
-                                GPT-4o · GPT-4o Mini<br>GPT-4 Turbo · GPT-3.5 Turbo
+                                GPT-5.2 · 5.1 · 5 · 5 Mini · 5 Nano<br>GPT-4.1 · 4o · o3 · o4 Mini · Codex
                             </div>
                             <div class="info-tag-row" style="justify-content:center;margin-top:8px;">
+                                <span class="info-tag">Responses API</span>
                                 <span class="info-tag">Vision</span>
-                                <span class="info-tag">128K context</span>
-                                <span class="info-tag">Functions</span>
+                                <span class="info-tag">Reasoning</span>
                             </div>
                             <div style="margin-top:8px;"><a class="info-link" href="https://platform.openai.com" target="_blank">platform.openai.com ↗</a></div>
+                        </div>
+                        <div class="info-provider-card" id="infoProvOpenRouter">
+                            <div class="info-provider-name">🌐 OpenRouter</div>
+                            <div class="info-provider-desc">Eén API-key voor 300+ modellen</div>
+                            <div class="info-provider-models">
+                                GPT-5.2 · Claude 4.6 · Gemini 2.5<br>Llama 4 · Grok · Mistral · 300+ meer
+                            </div>
+                            <div class="info-tag-row" style="justify-content:center;margin-top:8px;">
+                                <span class="info-tag">300+ modellen</span>
+                                <span class="info-tag">Alle providers</span>
+                                <span class="info-tag">Pay-per-use</span>
+                            </div>
+                            <div style="margin-top:8px;"><a class="info-link" href="https://openrouter.ai" target="_blank">openrouter.ai ↗</a></div>
                         </div>
                         <div class="info-provider-card" id="infoProvOllama">
                             <div class="info-provider-name">🏠 Ollama (Lokaal)</div>
@@ -1350,6 +1500,23 @@
                     <div class="info-row"><span class="info-label">Geïndexeerd</span><span class="info-value" id="infoIndexCount">-</span></div>
                     <div class="info-row"><span class="info-label">Afbeeldingen</span><span class="info-value" id="infoImgCount">-</span></div>
                     <div class="info-row"><span class="info-label">Python</span><span class="info-value" id="infoPython">-</span></div>
+                </div>
+
+                <!-- Token Usage Stats -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">🔢</span>
+                        <div>
+                            <div class="info-card-title">Token Verbruik</div>
+                            <div class="info-card-subtitle">Sessie-totalen (chat + oefeningen)</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">API-aanroepen</span><span class="info-value" id="infoTotalCalls">0</span></div>
+                    <div class="info-row"><span class="info-label">Tokens in</span><span class="info-value" id="infoTotalIn">0</span></div>
+                    <div class="info-row"><span class="info-label">Tokens uit</span><span class="info-value" id="infoTotalOut">0</span></div>
+                    <div class="info-row"><span class="info-label">Tokens totaal</span><span class="info-value" id="infoTotalTokens">0</span></div>
+                    <div class="info-row"><span class="info-label">Chunks gebruikt</span><span class="info-value" id="infoTotalChunks">0</span></div>
+                    <div class="info-row"><span class="info-label">Geschatte kosten</span><span class="info-value" id="infoTotalCost">$0.0000</span></div>
                 </div>
             </div>
         </div>
@@ -1576,6 +1743,101 @@
         showStatus(`${name} verwijderd`, 'success');
     }
 
+    // ── URL Upload ──────────────────────────────────────────────
+    document.getElementById('urlUploadBtn').addEventListener('click', async () => {
+        const urlInput = document.getElementById('urlInput');
+        const url = urlInput.value.trim();
+        if (!url) {
+            showStatus('Voer een URL in', 'error');
+            urlInput.focus();
+            return;
+        }
+        // Basic URL validation
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            showStatus('URL moet beginnen met http:// of https://', 'error');
+            urlInput.focus();
+            return;
+        }
+
+        const btn = document.getElementById('urlUploadBtn');
+        btn.disabled = true;
+        btn.textContent = 'Ophalen...';
+
+        // Show progress overlay
+        const overlay = document.getElementById('uploadProgress');
+        document.getElementById('uploadProgressTitle').textContent = 'Webpagina verwerken...';
+        document.getElementById('uploadProgressFile').textContent = url;
+        document.getElementById('uploadProgressBar').style.width = '0%';
+        const steps = document.getElementById('uploadProgressSteps');
+        steps.children[0].querySelector('.step-icon').textContent = '○'; // Upload
+        steps.children[1].querySelector('.step-icon').textContent = '○'; // Tekst
+        steps.children[2].querySelector('.step-icon').textContent = '—'; // Afbeeldingen (n.v.t.)
+        steps.children[2].style.opacity = '0.4';
+        steps.children[3].querySelector('.step-icon').textContent = '○'; // Embeddings
+        steps.children[4].querySelector('.step-icon').textContent = '○'; // Klaar
+        overlay.classList.add('active');
+
+        // Step 1: Ophalen
+        setTimeout(() => {
+            steps.children[0].querySelector('.step-icon').textContent = '◉';
+            document.getElementById('uploadProgressBar').style.width = '20%';
+        }, 300);
+
+        try {
+            // Step 2: Tekst extraheren
+            setTimeout(() => {
+                steps.children[0].querySelector('.step-icon').textContent = '✓';
+                steps.children[1].querySelector('.step-icon').textContent = '◉';
+                document.getElementById('uploadProgressBar').style.width = '40%';
+            }, 1000);
+
+            const res = await fetch(`${API}/api/upload-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.detail || 'Fout bij ophalen van URL');
+            }
+
+            // Step 3: Embeddings done
+            steps.children[1].querySelector('.step-icon').textContent = '✓';
+            steps.children[3].querySelector('.step-icon').textContent = '✓';
+            document.getElementById('uploadProgressBar').style.width = '90%';
+
+            // Step 4: Klaar
+            setTimeout(() => {
+                steps.children[4].querySelector('.step-icon').textContent = '✓';
+                document.getElementById('uploadProgressBar').style.width = '100%';
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                    steps.children[2].style.opacity = '1';
+                }, 800);
+            }, 500);
+
+            urlInput.value = '';
+            loadDocuments();
+            showStatus(`Webpagina geïndexeerd: ${data.filename} (${data.chunks} chunks, ${data.characters} tekens)`, 'success', 8000);
+        } catch (err) {
+            overlay.classList.remove('active');
+            steps.children[2].style.opacity = '1';
+            showStatus(`Fout: ${err.message}`, 'error', 8000);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Indexeer URL';
+        }
+    });
+
+    // Enter key on URL input triggers upload
+    document.getElementById('urlInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('urlUploadBtn').click();
+        }
+    });
+
     document.getElementById('reindexBtn').addEventListener('click', async () => {
         if (!confirm('Alle documenten opnieuw indexeren? Dit kan even duren.')) return;
         const btn = document.getElementById('reindexBtn');
@@ -1662,6 +1924,27 @@
         addMessage(chatMessages, msg, 'user');
         chatSend.disabled = true;
 
+        // Show thinking indicator
+        const thinkingEl = document.createElement('div');
+        thinkingEl.className = 'thinking-indicator';
+        thinkingEl.innerHTML = `
+            <div class="thinking-dots"><span></span><span></span><span></span></div>
+            <span class="thinking-text">StudyPilot denkt na...</span>
+        `;
+        chatMessages.appendChild(thinkingEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Update thinking text with elapsed time
+        const thinkStart = Date.now();
+        const thinkingTextEl = thinkingEl.querySelector('.thinking-text');
+        const thinkTimer = setInterval(() => {
+            const secs = Math.floor((Date.now() - thinkStart) / 1000);
+            if (secs < 5) thinkingTextEl.textContent = 'StudyPilot denkt na...';
+            else if (secs < 15) thinkingTextEl.textContent = `Bezig met analyseren... (${secs}s)`;
+            else if (secs < 30) thinkingTextEl.textContent = `Kennisbank doorzoeken... (${secs}s)`;
+            else thinkingTextEl.textContent = `Nog even geduld... (${secs}s)`;
+        }, 1000);
+
         try {
             const res = await fetch(`${API}/api/chat`, {
                 method: 'POST',
@@ -1680,6 +1963,8 @@
         } catch (err) {
             addMessage(chatMessages, `Fout: ${err.message}`, 'bot');
         }
+        clearInterval(thinkTimer);
+        thinkingEl.remove();
         chatSend.disabled = false;
         chatInput.focus();
     }
@@ -1720,21 +2005,31 @@
 
             // Token usage badge
             if (usage) {
-                const totalTokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
-                const costEstimate = (
-                    (usage.input_tokens || 0) * 3 / 1_000_000 +
-                    (usage.output_tokens || 0) * 15 / 1_000_000
-                ).toFixed(4);
+                const inTok = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
+                const outTok = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0;
+                const totalTokens = inTok + outTok;
+                const costEstimate = (inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000).toFixed(4);
+                const chunks = typeof usage.context_chunks === 'number' ? usage.context_chunks : 0;
+
+                // Track cumulative stats for info page
+                if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+                window._tokenStats.input += inTok;
+                window._tokenStats.output += outTok;
+                window._tokenStats.total += totalTokens;
+                window._tokenStats.chunks += chunks;
+                window._tokenStats.cost += parseFloat(costEstimate);
+                window._tokenStats.calls += 1;
+
                 const usageDiv = document.createElement('div');
                 usageDiv.className = 'token-usage';
                 usageDiv.innerHTML = `
-                    <span class="tu-item" title="Tokens verstuurd naar Claude (context + systeemprompt + chatgeschiedenis)">
+                    <span class="tu-item" title="Tokens verstuurd (context + systeemprompt + chatgeschiedenis)">
                         <span class="tu-label">In:</span>
-                        <span class="tu-value">${usage.input_tokens?.toLocaleString('nl-NL') || '?'}</span>
+                        <span class="tu-value">${inTok.toLocaleString('nl-NL')}</span>
                     </span>
-                    <span class="tu-item" title="Tokens gegenereerd door Claude (het antwoord)">
+                    <span class="tu-item" title="Tokens gegenereerd (het antwoord)">
                         <span class="tu-label">Uit:</span>
-                        <span class="tu-value">${usage.output_tokens?.toLocaleString('nl-NL') || '?'}</span>
+                        <span class="tu-value">${outTok.toLocaleString('nl-NL')}</span>
                     </span>
                     <span class="tu-item" title="Totaal tokens (in + uit)">
                         <span class="tu-label">Totaal:</span>
@@ -1742,7 +2037,7 @@
                     </span>
                     <span class="tu-item" title="Aantal contextfragmenten opgehaald uit de kennisbank">
                         <span class="tu-label">Chunks:</span>
-                        <span class="tu-value">${usage.context_chunks || '?'}</span>
+                        <span class="tu-value">${chunks}</span>
                     </span>
                     <span class="tu-item" title="Geschatte kosten (Sonnet: $3/M in, $15/M uit)">
                         <span class="tu-label">Kosten:</span>
@@ -1909,6 +2204,25 @@
         addMessage(sessionMessages, msg, 'user');
         sessionSend.disabled = true;
 
+        // Show thinking indicator
+        const thinkingEl = document.createElement('div');
+        thinkingEl.className = 'thinking-indicator';
+        thinkingEl.innerHTML = `
+            <div class="thinking-dots"><span></span><span></span><span></span></div>
+            <span class="thinking-text">AI-acteur denkt na...</span>
+        `;
+        sessionMessages.appendChild(thinkingEl);
+        sessionMessages.scrollTop = sessionMessages.scrollHeight;
+
+        const thinkStart = Date.now();
+        const thinkingTextEl = thinkingEl.querySelector('.thinking-text');
+        const thinkTimer = setInterval(() => {
+            const secs = Math.floor((Date.now() - thinkStart) / 1000);
+            if (secs < 5) thinkingTextEl.textContent = 'AI-acteur denkt na...';
+            else if (secs < 15) thinkingTextEl.textContent = `Antwoord formuleren... (${secs}s)`;
+            else thinkingTextEl.textContent = `Nog even geduld... (${secs}s)`;
+        }, 1000);
+
         try {
             const res = await fetch(`${API}/api/session/message`, {
                 method: 'POST',
@@ -1917,7 +2231,7 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || 'Fout');
-            addMessage(sessionMessages, data.reply, 'bot');
+            addMessage(sessionMessages, data.reply, 'bot', data.usage);
 
             if (document.getElementById('ttsToggle').checked) {
                 speak(data.reply);
@@ -1925,6 +2239,8 @@
         } catch (err) {
             addMessage(sessionMessages, `Fout: ${err.message}`, 'bot');
         }
+        clearInterval(thinkTimer);
+        thinkingEl.remove();
         sessionSend.disabled = false;
         sessionInput.focus();
     }
@@ -2514,15 +2830,58 @@
     // ── Setup / Settings ─────────────────────────────
     const PROVIDER_MODELS = {
         anthropic: [
+            // ── Claude 4.6 ──
             { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (aanbevolen)' },
+            { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+            // ── Claude 4 ──
             { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-            { value: 'claude-haiku-4-20250414', label: 'Claude Haiku 4' },
             { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
+            { value: 'claude-haiku-4-20250414', label: 'Claude Haiku 4' },
+            // ── Claude 3.5 ──
+            { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet v2' },
+            { value: 'claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet' },
+            { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+            // ── Claude 3 ──
+            { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+            { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+            { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
         ],
         openai: [
-            { value: 'gpt-4o', label: 'GPT-4o (aanbevolen)' },
+            // ── GPT-5.2 ──
+            { value: 'gpt-5.2', label: 'GPT-5.2 (nieuwste)' },
+            { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
+            // ── GPT-5.1 ──
+            { value: 'gpt-5.1', label: 'GPT-5.1' },
+            { value: 'gpt-5.1-mini', label: 'GPT-5.1 Mini' },
+            { value: 'gpt-5.1-codex', label: 'GPT-5.1 Codex' },
+            // ── GPT-5 ──
+            { value: 'gpt-5', label: 'GPT-5' },
+            { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+            { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
+            { value: 'gpt-5-pro', label: 'GPT-5 Pro' },
+            // ── GPT-4.1 ──
+            { value: 'gpt-4.1', label: 'GPT-4.1' },
+            { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+            { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+            // ── GPT-4o ──
+            { value: 'chatgpt-4o-latest', label: 'ChatGPT-4o Latest' },
+            { value: 'gpt-4o', label: 'GPT-4o' },
             { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+            // ── Reasoning (o-serie) ──
+            { value: 'o4-mini', label: 'o4 Mini (reasoning)' },
+            { value: 'o3', label: 'o3 (reasoning)' },
+            { value: 'o3-pro', label: 'o3 Pro (reasoning)' },
+            { value: 'o3-mini', label: 'o3 Mini (reasoning)' },
+            { value: 'o1', label: 'o1 (reasoning)' },
+            { value: 'o1-pro', label: 'o1 Pro (reasoning)' },
+            { value: 'o1-mini', label: 'o1 Mini (reasoning)' },
+            // ── Codex ──
+            { value: 'codex-mini-latest', label: 'Codex Mini (code)' },
+            { value: 'gpt-5-codex', label: 'GPT-5 Codex (code)' },
+            // ── GPT-4 ──
             { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+            { value: 'gpt-4', label: 'GPT-4' },
+            // ── GPT-3.5 ──
             { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
         ],
         ollama: [],  // populated dynamically
@@ -2531,16 +2890,132 @@
     let currentProvider = 'anthropic';
     let appLocked = false;
 
+    function renderProviderConfig(provider) {
+        const area = document.getElementById('providerConfigArea');
+        const searchRow = document.getElementById('modelSearchRow');
+        searchRow.style.display = 'none';
+
+        if (provider === 'anthropic') {
+            area.innerHTML = `
+                <div class="provider-config">
+                    <h4>🟣 Anthropic API Key</h4>
+                    <div class="setup-field" style="margin-bottom:0;">
+                        <label for="setupAiKeyInline">
+                            API Key <span class="setup-status" id="aiKeyStatus"></span>
+                        </label>
+                        <input type="password" id="setupAiKeyInline" placeholder="sk-ant-...">
+                        <div class="field-hint">Je Anthropic API key van <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a>. Wordt lokaal opgeslagen.</div>
+                    </div>
+                </div>`;
+            _syncKeyField('setupAiKey', 'setupAiKeyInline');
+        } else if (provider === 'openai') {
+            area.innerHTML = `
+                <div class="provider-config">
+                    <h4>🟢 OpenAI API Key</h4>
+                    <div class="setup-field" style="margin-bottom:0;">
+                        <label for="setupAiKeyInline">
+                            API Key <span class="setup-status" id="aiKeyStatus"></span>
+                        </label>
+                        <input type="password" id="setupAiKeyInline" placeholder="sk-...">
+                        <div class="field-hint">Je OpenAI API key van <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>. Wordt lokaal opgeslagen.</div>
+                    </div>
+                </div>`;
+            _syncKeyField('setupAiKey', 'setupAiKeyInline');
+        } else if (provider === 'openrouter') {
+            area.innerHTML = `
+                <div class="provider-config">
+                    <h4>🌐 OpenRouter API Key</h4>
+                    <div class="setup-field" style="margin-bottom:0;">
+                        <label for="setupOrKeyInline">
+                            API Key <span class="setup-status" id="orKeyStatus"></span>
+                        </label>
+                        <input type="password" id="setupOrKeyInline" placeholder="sk-or-v1-...">
+                        <div class="field-hint">Je API key van <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>. Geeft toegang tot 300+ modellen.</div>
+                    </div>
+                </div>`;
+            _syncKeyField('setupOpenRouterKey', 'setupOrKeyInline');
+            searchRow.style.display = '';
+        } else if (provider === 'ollama') {
+            area.innerHTML = `
+                <div class="provider-config">
+                    <h4>🏠 Ollama Server</h4>
+                    <div class="setup-field" style="margin-bottom:0;">
+                        <label for="setupOllamaUrlInline">Server URL
+                            <button class="btn btn-sm btn-secondary" id="refreshOllamaModelsInline" style="margin-left:8px;font-size:11px;padding:2px 8px;">↻ Vernieuwen</button>
+                        </label>
+                        <input type="text" id="setupOllamaUrlInline" value="" placeholder="http://localhost:11434">
+                        <div class="field-hint">URL van je lokale Ollama server. Start Ollama met: <code>ollama serve</code></div>
+                        <div id="ollamaModelListInline" style="font-size:12px;color:var(--text-muted);margin-top:6px;">Klik op vernieuwen om modellen op te halen...</div>
+                    </div>
+                </div>`;
+            // Sync Ollama URL
+            const hiddenUrl = document.getElementById('setupOllamaUrl');
+            const inlineUrl = document.getElementById('setupOllamaUrlInline');
+            inlineUrl.value = hiddenUrl.value;
+            inlineUrl.addEventListener('input', () => { hiddenUrl.value = inlineUrl.value; });
+            document.getElementById('refreshOllamaModelsInline').addEventListener('click', () => {
+                fetchOllamaModels(document.getElementById('setupModel').value);
+            });
+        }
+        // Update key status indicators after rendering
+        setTimeout(() => _updateInlineKeyStatus(), 10);
+    }
+
+    function _syncKeyField(hiddenId, inlineId) {
+        const hidden = document.getElementById(hiddenId);
+        const inline = document.getElementById(inlineId);
+        if (!hidden || !inline) return;
+        // Copy placeholder (masked key) from hidden to inline
+        if (hidden.placeholder && hidden.placeholder !== 'sk-...' && hidden.placeholder !== 'sk-ant-...' && hidden.placeholder !== 'sk-or-v1-...') {
+            inline.placeholder = hidden.placeholder;
+        }
+        // When user types in inline, sync to hidden
+        inline.addEventListener('input', () => { hidden.value = inline.value; });
+    }
+
+    function _updateInlineKeyStatus() {
+        // Update AI key status (Anthropic/OpenAI)
+        const aiKeyStatus = document.getElementById('aiKeyStatus');
+        const aiKeyHidden = document.getElementById('setupAiKey');
+        if (aiKeyStatus && aiKeyHidden) {
+            if (aiKeyHidden.dataset.set === '1') {
+                aiKeyStatus.textContent = '✓ Ingesteld';
+                aiKeyStatus.className = 'setup-status ok';
+                const inline = document.getElementById('setupAiKeyInline');
+                if (inline && aiKeyHidden.placeholder !== 'sk-...') inline.placeholder = aiKeyHidden.placeholder;
+            } else {
+                aiKeyStatus.textContent = '✗ Niet ingesteld';
+                aiKeyStatus.className = 'setup-status missing';
+            }
+        }
+        // Update OpenRouter key status
+        const orKeyStatus = document.getElementById('orKeyStatus');
+        const orKeyHidden = document.getElementById('setupOpenRouterKey');
+        if (orKeyStatus && orKeyHidden) {
+            if (orKeyHidden.dataset.set === '1') {
+                orKeyStatus.textContent = '✓ Ingesteld';
+                orKeyStatus.className = 'setup-status ok';
+                const inline = document.getElementById('setupOrKeyInline');
+                if (inline && orKeyHidden.placeholder !== 'sk-or-v1-...') inline.placeholder = orKeyHidden.placeholder;
+            } else {
+                orKeyStatus.textContent = '✗ Niet ingesteld';
+                orKeyStatus.className = 'setup-status missing';
+            }
+        }
+    }
+
     function updateModelOptions(provider, selectedModel) {
         const select = document.getElementById('setupModel');
-        const ollamaSection = document.getElementById('ollamaSection');
 
-        // Show/hide Ollama config
-        ollamaSection.style.display = provider === 'ollama' ? '' : 'none';
+        // Render provider-specific config
+        renderProviderConfig(provider);
 
         if (provider === 'ollama') {
-            // Fetch models from Ollama server
             fetchOllamaModels(selectedModel);
+            return;
+        }
+        if (provider === 'openrouter') {
+            fetchOpenRouterModels(selectedModel);
             return;
         }
 
@@ -2552,7 +3027,7 @@
 
     async function fetchOllamaModels(selectedModel) {
         const select = document.getElementById('setupModel');
-        const listEl = document.getElementById('ollamaModelList');
+        const listEl = document.getElementById('ollamaModelListInline') || document.getElementById('ollamaModelList');
         select.innerHTML = '<option value="">Modellen laden...</option>';
         try {
             const res = await fetch(`${API}/api/ollama/models`);
@@ -2562,21 +3037,68 @@
                 select.innerHTML = data.models.map(m =>
                     `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}</option>`
                 ).join('');
-                listEl.innerHTML = `<span style="color:var(--success)">✓ ${data.models.length} modellen gevonden op ${data.base_url}</span>`;
+                if (listEl) listEl.innerHTML = `<span style="color:var(--success)">✓ ${data.models.length} modellen gevonden op ${data.base_url}</span>`;
             } else {
                 select.innerHTML = '<option value="">Geen modellen gevonden</option>';
                 const err = data.error || 'Geen modellen beschikbaar';
-                listEl.innerHTML = `<span style="color:var(--danger)">✗ ${err}</span><br>
+                if (listEl) listEl.innerHTML = `<span style="color:var(--danger)">✗ ${err}</span><br>
                     <span style="font-size:11px;color:var(--text-muted)">Zorg dat Ollama draait: <code>ollama serve</code> en download een model: <code>ollama pull llama3.1</code></span>`;
             }
         } catch (err) {
             select.innerHTML = '<option value="">Verbinding mislukt</option>';
-            listEl.innerHTML = `<span style="color:var(--danger)">✗ Kan geen verbinding maken met Ollama</span>`;
+            if (listEl) listEl.innerHTML = `<span style="color:var(--danger)">✗ Kan geen verbinding maken met Ollama</span>`;
         }
     }
 
-    document.getElementById('refreshOllamaModels').addEventListener('click', () => {
-        fetchOllamaModels(document.getElementById('setupModel').value);
+    // ── OpenRouter model fetching ──
+    let _openrouterAllModels = [];
+
+    async function fetchOpenRouterModels(selectedModel) {
+        const select = document.getElementById('setupModel');
+        const modelHint = document.getElementById('modelHint');
+        select.innerHTML = '<option value="">Modellen laden...</option>';
+        try {
+            const res = await fetch(`${API}/api/openrouter/models`);
+            const data = await res.json();
+            if (data.status === 'ok' && data.models.length > 0) {
+                _openrouterAllModels = data.models;
+                PROVIDER_MODELS.openrouter = data.models;
+                _filterOpenRouterModels(selectedModel);
+                modelHint.innerHTML = `<span style="color:var(--success)">✓ ${data.total} modellen beschikbaar</span> — gebruik het zoekveld om te filteren`;
+            } else {
+                select.innerHTML = '<option value="">Geen modellen gevonden</option>';
+                modelHint.innerHTML = `<span style="color:var(--danger)">✗ ${data.error || 'Geen modellen'}</span>`;
+            }
+        } catch (err) {
+            select.innerHTML = '<option value="">Laden mislukt</option>';
+            modelHint.innerHTML = `<span style="color:var(--danger)">✗ Fout bij ophalen: ${err.message}</span>`;
+        }
+    }
+
+    function _filterOpenRouterModels(selectedModel) {
+        const select = document.getElementById('setupModel');
+        const query = (document.getElementById('openrouterSearch').value || '').toLowerCase();
+        let filtered = _openrouterAllModels;
+        if (query) {
+            filtered = _openrouterAllModels.filter(m =>
+                m.value.toLowerCase().includes(query) || m.label.toLowerCase().includes(query)
+            );
+        }
+        // Limit to 50 in dropdown for performance, show count
+        const shown = filtered.slice(0, 50);
+        select.innerHTML = shown.map(m =>
+            `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}${m.cost_per_m ? ` ($${m.cost_per_m}/M)` : ''}</option>`
+        ).join('');
+        if (filtered.length > 50) {
+            select.innerHTML += `<option value="" disabled>... en ${filtered.length - 50} meer — gebruik zoekfilter</option>`;
+        }
+        if (filtered.length === 0) {
+            select.innerHTML = '<option value="">Geen resultaten — probeer een andere zoekopdracht</option>';
+        }
+    }
+
+    document.getElementById('openrouterSearch').addEventListener('input', () => {
+        _filterOpenRouterModels(document.getElementById('setupModel').value);
     });
 
     function switchToSetup() {
@@ -2617,17 +3139,14 @@
 
             updateModelOptions(currentProvider, data.model);
 
-            // Show masked keys and status
+            // Show masked keys and status — update hidden fields first, then inline via renderProviderConfig
             const aiKeyInput = document.getElementById('setupAiKey');
-            const aiKeyStatus = document.getElementById('aiKeyStatus');
             if (data.ai_api_key_masked) {
                 aiKeyInput.placeholder = data.ai_api_key_masked;
-                aiKeyStatus.textContent = '✓ Ingesteld';
-                aiKeyStatus.className = 'setup-status ok';
+                aiKeyInput.dataset.set = '1';
             } else {
                 aiKeyInput.placeholder = 'sk-...';
-                aiKeyStatus.textContent = '✗ Niet ingesteld';
-                aiKeyStatus.className = 'setup-status missing';
+                aiKeyInput.dataset.set = '';
             }
 
             const elKeyInput = document.getElementById('setupElKey');
@@ -2645,6 +3164,34 @@
             // Load Ollama URL if present
             if (data.ollama_base_url) {
                 document.getElementById('setupOllamaUrl').value = data.ollama_base_url;
+            }
+
+            // Load OpenRouter key status
+            const orKeyInput = document.getElementById('setupOpenRouterKey');
+            if (data.openrouter_api_key_masked) {
+                orKeyInput.placeholder = data.openrouter_api_key_masked;
+                orKeyInput.dataset.set = '1';
+            } else {
+                orKeyInput.placeholder = 'sk-or-v1-...';
+                orKeyInput.dataset.set = '';
+            }
+
+            // Update inline key fields after provider config is rendered
+            _updateInlineKeyStatus();
+
+            // Load user profile
+            document.getElementById('setupUserName').value = data.user_name || '';
+            document.getElementById('setupEducation').value = data.user_education || '';
+            document.getElementById('setupStartYear').value = data.user_start_year || '';
+
+            // Personalize welcome message
+            const userName = data.user_name || '';
+            const welcomeGreeting = userName
+                ? `Hallo ${userName}! Ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!`
+                : 'Hallo! Ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!';
+            const firstMsg = chatMessages.querySelector('.message.bot:first-child');
+            if (firstMsg && chatMessages.children.length === 1) {
+                firstMsg.textContent = welcomeGreeting;
             }
 
             // Update model hint in nav
@@ -2694,6 +3241,14 @@
         if (currentProvider === 'ollama') {
             payload.ollama_base_url = document.getElementById('setupOllamaUrl').value.trim() || 'http://localhost:11434';
         }
+        if (currentProvider === 'openrouter') {
+            const orKey = document.getElementById('setupOpenRouterKey').value.trim();
+            if (orKey) payload.openrouter_api_key = orKey;
+        }
+        // User profile
+        payload.user_name = document.getElementById('setupUserName').value.trim();
+        payload.user_education = document.getElementById('setupEducation').value.trim();
+        payload.user_start_year = document.getElementById('setupStartYear').value.trim();
 
         try {
             const res = await fetch(`${API}/api/settings`, {
@@ -2712,6 +3267,11 @@
             // Clear password inputs (they were saved)
             document.getElementById('setupAiKey').value = '';
             document.getElementById('setupElKey').value = '';
+            document.getElementById('setupOpenRouterKey').value = '';
+            const inlineAi = document.getElementById('setupAiKeyInline');
+            if (inlineAi) inlineAi.value = '';
+            const inlineOr = document.getElementById('setupOrKeyInline');
+            if (inlineOr) inlineOr.value = '';
 
             // Reload settings to update UI
             await loadSettings();
@@ -2753,7 +3313,7 @@
 
             // Highlight active provider card
             document.querySelectorAll('.info-provider-card').forEach(c => c.classList.remove('active'));
-            const provMap = { anthropic: 'infoProvAnthro', openai: 'infoProvOpenAI', ollama: 'infoProvOllama' };
+            const provMap = { anthropic: 'infoProvAnthro', openai: 'infoProvOpenAI', openrouter: 'infoProvOpenRouter', ollama: 'infoProvOllama' };
             const activeCard = document.getElementById(provMap[prov]);
             if (activeCard) activeCard.classList.add('active');
 
@@ -2779,14 +3339,33 @@
                 document.getElementById('infoTTSStatus').innerHTML = '<span class="info-badge green">Actief</span>';
             }
 
+            // User profile
+            const up = info.user_profile || {};
+            document.getElementById('infoUserName').innerHTML = up.name || '<em style="color:var(--text-muted)">Niet ingesteld</em>';
+            document.getElementById('infoUserEducation').innerHTML = up.education || '<em style="color:var(--text-muted)">Niet ingesteld</em>';
+            document.getElementById('infoUserStartYear').innerHTML = up.start_year || '<em style="color:var(--text-muted)">Niet ingesteld</em>';
+
             // Stats
             document.getElementById('infoDocCount').textContent = info.stats.documents_uploaded;
             document.getElementById('infoIndexCount').textContent = info.stats.unique_documents_indexed;
             document.getElementById('infoImgCount').textContent = info.stats.images_extracted;
             document.getElementById('infoPython').textContent = info.system.python_version;
+
+            // Token usage stats
+            updateInfoTokenStats();
         } catch (err) {
             console.warn('Kon info niet laden:', err);
         }
+    }
+
+    function updateInfoTokenStats() {
+        const s = window._tokenStats || { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+        document.getElementById('infoTotalCalls').textContent = s.calls.toLocaleString('nl-NL');
+        document.getElementById('infoTotalIn').textContent = s.input.toLocaleString('nl-NL');
+        document.getElementById('infoTotalOut').textContent = s.output.toLocaleString('nl-NL');
+        document.getElementById('infoTotalTokens').textContent = s.total.toLocaleString('nl-NL');
+        document.getElementById('infoTotalChunks').textContent = s.chunks.toLocaleString('nl-NL');
+        document.getElementById('infoTotalCost').textContent = `$${s.cost.toFixed(4)}`;
     }
 
     // Load info when Info tab is activated
@@ -2802,7 +3381,7 @@
     </script>
     <footer class="copyright-footer">
         <span>Copyright &copy; 2026 twinology.ai</span>
-        <span class="footer-version" id="footerVersion">v2.1.1 — Multimodal RAG Edition</span>
+        <span class="footer-version" id="footerVersion">v2.7.0 — Multimodal RAG Edition</span>
     </footer>
 </body>
 </html>

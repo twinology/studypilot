@@ -21,6 +21,7 @@ _DEFAULTS = {
     "ai_api_key": "",
     "elevenlabs_api_key": "",
     "ollama_base_url": "http://localhost:11434",
+    "openrouter_api_key": "",
 }
 
 
@@ -57,6 +58,8 @@ def is_configured() -> bool:
     settings = load_settings()
     if settings.get("provider") == "ollama":
         return True  # Ollama needs no API key
+    if settings.get("provider") == "openrouter":
+        return bool(settings.get("openrouter_api_key", "").strip())
     return bool(settings.get("ai_api_key", "").strip())
 
 
@@ -68,12 +71,37 @@ def get_active_provider() -> str:
     return load_settings().get("provider", _DEFAULTS["provider"])
 
 
+def _extract_usage(response, provider: str) -> dict:
+    """Extract token usage from API response."""
+    usage = {"input_tokens": 0, "output_tokens": 0}
+    try:
+        if provider == "anthropic":
+            if hasattr(response, "usage"):
+                usage["input_tokens"] = getattr(response.usage, "input_tokens", 0)
+                usage["output_tokens"] = getattr(response.usage, "output_tokens", 0)
+        elif provider == "openai_responses":
+            # OpenAI Responses API uses input_tokens / output_tokens directly
+            if hasattr(response, "usage") and response.usage:
+                usage["input_tokens"] = getattr(response.usage, "input_tokens", 0) or 0
+                usage["output_tokens"] = getattr(response.usage, "output_tokens", 0) or 0
+        else:  # openai chat completions / ollama
+            if hasattr(response, "usage") and response.usage:
+                usage["input_tokens"] = getattr(response.usage, "prompt_tokens", 0) or 0
+                usage["output_tokens"] = getattr(response.usage, "completion_tokens", 0) or 0
+    except Exception as e:
+        logger.warning(f"Kon token usage niet uitlezen: {e}")
+    return usage
+
+
 def create_chat_completion(
     messages: list,
     system: str = "",
     max_tokens: int = None,
-) -> str:
+    return_usage: bool = False,
+):
     """Unified AI call. Returns the response text as a string.
+
+    If return_usage=True, returns a dict: {"text": str, "usage": {"input_tokens": int, "output_tokens": int}}
 
     Works with both Anthropic and OpenAI. Messages format:
         [{"role": "user"|"assistant", "content": "..."}]
@@ -86,9 +114,15 @@ def create_chat_completion(
     model = settings.get("model", _DEFAULTS["model"])
     api_key = settings.get("ai_api_key", "")
 
-    if provider != "ollama" and not api_key:
+    if provider == "openrouter":
+        api_key = settings.get("openrouter_api_key", "")
+    if provider not in ("ollama", "openrouter") and not api_key:
         raise RuntimeError(
             "Geen AI API-key geconfigureerd. Ga naar de Setup tab om een key in te stellen."
+        )
+    if provider == "openrouter" and not api_key:
+        raise RuntimeError(
+            "Geen OpenRouter API-key geconfigureerd. Ga naar de Setup tab om een key in te stellen."
         )
 
     if provider == "ollama":
@@ -104,22 +138,59 @@ def create_chat_completion(
             model=model,
             messages=full_messages,
         )
-        return response.choices[0].message.content
+        text = response.choices[0].message.content
+        if return_usage:
+            return {"text": text, "usage": _extract_usage(response, "ollama")}
+        return text
 
-    elif provider == "openai":
-        import openai
-        client = openai.OpenAI(api_key=api_key)
+    elif provider == "openrouter":
+        import openai as _openai
+        client = _openai.OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
         full_messages = []
         if system:
             full_messages.append({"role": "system", "content": system})
-        # Normalize image content blocks for OpenAI format
         full_messages.extend(_normalize_messages_for_openai(messages))
         response = client.chat.completions.create(
             model=model,
             max_tokens=max_tokens,
             messages=full_messages,
         )
-        return response.choices[0].message.content
+        text = response.choices[0].message.content
+        if return_usage:
+            return {"text": text, "usage": _extract_usage(response, "ollama")}  # same format
+        return text
+
+    elif provider == "openai":
+        import openai
+        client = openai.OpenAI(api_key=api_key)
+
+        # Build input for Responses API
+        input_items = []
+        for msg in _normalize_messages_for_openai(messages):
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                input_items.append({"role": role, "content": content})
+            elif isinstance(content, list):
+                # Multimodal content blocks (text + images)
+                input_items.append({"role": role, "content": content})
+            else:
+                input_items.append({"role": role, "content": str(content)})
+
+        kwargs = {"model": model, "input": input_items}
+        if system:
+            kwargs["instructions"] = system
+        if max_tokens:
+            kwargs["max_output_tokens"] = max_tokens
+
+        response = client.responses.create(**kwargs)
+        text = response.output_text
+        if return_usage:
+            return {"text": text, "usage": _extract_usage(response, "openai_responses")}
+        return text
 
     else:  # anthropic (default)
         import anthropic
@@ -130,7 +201,10 @@ def create_chat_completion(
         if system:
             kwargs["system"] = system
         response = client.messages.create(**kwargs)
-        return response.content[0].text
+        text = response.content[0].text
+        if return_usage:
+            return {"text": text, "usage": _extract_usage(response, "anthropic")}
+        return text
 
 
 # ── Multimodal helpers ────────────────────────────────────────────────
@@ -251,8 +325,12 @@ def create_vision_completion(
     model = settings.get("model", _DEFAULTS["model"])
     api_key = settings.get("ai_api_key", "")
 
-    if provider != "ollama" and not api_key:
+    if provider == "openrouter":
+        api_key = settings.get("openrouter_api_key", "")
+    if provider not in ("ollama", "openrouter") and not api_key:
         raise RuntimeError("Geen AI API-key geconfigureerd.")
+    if provider == "openrouter" and not api_key:
+        raise RuntimeError("Geen OpenRouter API-key geconfigureerd.")
 
     b64_data = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -277,23 +355,46 @@ def create_vision_completion(
             logger.warning(f"Ollama vision mislukt ({model}): {e}. Afbeelding overgeslagen.")
             return f"[Afbeelding kon niet worden beschreven door lokaal model {model}]"
 
+    elif provider == "openrouter":
+        import openai as _openai
+        client = _openai.OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                max_tokens=max_tokens,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_data}"}},
+                        {"type": "text", "text": prompt},
+                    ],
+                }],
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"OpenRouter vision mislukt ({model}): {e}. Afbeelding overgeslagen.")
+            return f"[Afbeelding kon niet worden beschreven via OpenRouter model {model}]"
+
     elif provider == "openai":
         import openai
         client = openai.OpenAI(api_key=api_key)
-        # OpenAI vision uses gpt-4o models; fall back if model doesn't support vision
-        vision_model = model if "gpt-4" in model else "gpt-4o"
-        response = client.chat.completions.create(
+        # OpenAI Responses API with vision
+        vision_model = model if "gpt-4" in model or "gpt-5" in model else "gpt-4o"
+        response = client.responses.create(
             model=vision_model,
-            max_tokens=max_tokens,
-            messages=[{
+            max_output_tokens=max_tokens,
+            input=[{
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_data}"}},
-                    {"type": "text", "text": prompt},
+                    {"type": "input_image", "image_url": f"data:{mime_type};base64,{b64_data}"},
+                    {"type": "input_text", "text": prompt},
                 ],
             }],
         )
-        return response.choices[0].message.content
+        return response.output_text
 
     else:  # anthropic
         import anthropic

@@ -7,10 +7,26 @@ from typing import List
 
 import config
 from config import MAX_TOKENS
-from ai_provider import create_chat_completion
+from ai_provider import create_chat_completion, load_settings
 from rag.vector_store import search
 
 logger = logging.getLogger("tutor")
+
+
+def _get_user_context() -> str:
+    """Build a personal context string from user profile settings."""
+    settings = load_settings()
+    name = settings.get("user_name", "").strip()
+    education = settings.get("user_education", "").strip()
+    start_year = settings.get("user_start_year", "").strip()
+    if not name:
+        return ""
+    parts = [f"\n\n## Gebruikersprofiel:\n- De student heet {name}. Spreek de student aan met '{name}' en gebruik 'je' en 'jij'."]
+    if education:
+        parts.append(f"- Opleiding: {education}")
+    if start_year:
+        parts.append(f"- Gestart in: {start_year}")
+    return "\n".join(parts)
 
 SYSTEM_PROMPT = """Je bent een deskundige AI-tutor.
 Je helpt studenten om onderwerpen te begrijpen en toe te passen.
@@ -103,10 +119,12 @@ def rag_query(
                 context_text = image_context
 
         system = SYSTEM_PROMPT
+        system += _get_user_context()
         if context_text:
             system += f"\n\n## Relevante context uit de kennisbank:\n\n{context_text}"
     else:
         system = DIRECT_SYSTEM_PROMPT
+        system += _get_user_context()
         image_items = []
 
     # Build messages — potentially with multimodal content blocks
@@ -119,9 +137,11 @@ def rag_query(
     messages.append({"role": "user", "content": user_content})
 
     try:
-        answer = create_chat_completion(
-            messages=messages, system=system, max_tokens=MAX_TOKENS
+        result = create_chat_completion(
+            messages=messages, system=system, max_tokens=MAX_TOKENS, return_usage=True
         )
+        answer = result["text"]
+        token_usage = result["usage"]
     except RuntimeError:
         raise
     except Exception as e:
@@ -146,8 +166,8 @@ def rag_query(
             image_paths.append(img_path)
 
     usage = {
-        "input_tokens": "?",
-        "output_tokens": "?",
+        "input_tokens": token_usage.get("input_tokens", 0),
+        "output_tokens": token_usage.get("output_tokens", 0),
         "context_chunks": len(context_items),
         "image_chunks": len(image_items),
     }

@@ -16,6 +16,11 @@ from typing import Optional
 
 import json
 
+import hashlib
+import urllib.parse
+import urllib.request
+
+import httpx
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -281,6 +286,110 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(400, str(e))
 
 
+class UrlUploadRequest(BaseModel):
+    url: str
+
+
+_FETCH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+_FETCH_HEADERS = {
+    "User-Agent": _FETCH_UA,
+    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+    "Accept-Language": "nl,en;q=0.5",
+}
+
+
+def _fetch_url_sync(url: str) -> tuple:
+    """Fetch URL using urllib (fallback for sites that block httpx). Returns (html_content, content_type)."""
+    req = urllib.request.Request(url, headers=_FETCH_HEADERS)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        content_type = resp.headers.get("Content-Type", "")
+        raw = resp.read()
+        encoding = "utf-8"
+        if "charset=" in content_type:
+            encoding = content_type.split("charset=")[-1].split(";")[0].strip()
+        return raw.decode(encoding, errors="replace"), content_type
+
+
+@app.post("/api/upload-url")
+async def upload_url(req: UrlUploadRequest):
+    """Fetch a webpage, extract text content, save as HTML and index it."""
+    from urllib.parse import urlparse as _urlparse
+
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(400, "URL mag niet leeg zijn.")
+
+    # Validate URL
+    parsed = _urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Alleen HTTP en HTTPS URLs zijn toegestaan.")
+
+    # Fetch the webpage — try httpx first, fall back to urllib (some sites block httpx TLS fingerprint)
+    html_content = None
+    content_type = ""
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            response = await client.get(url, headers=_FETCH_HEADERS)
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "")
+            html_content = response.text
+    except Exception:
+        # Fallback to urllib (works with sites that block httpx, like Wikipedia)
+        try:
+            html_content, content_type = await asyncio.to_thread(_fetch_url_sync, url)
+        except Exception as e:
+            raise HTTPException(502, f"Kon de URL niet ophalen: {str(e)}")
+
+    # Check content type
+    if "text/html" not in content_type and "text/plain" not in content_type:
+        raise HTTPException(400, f"Niet-ondersteund content type: {content_type}. Alleen HTML en tekst pagina's worden ondersteund.")
+
+    if not html_content or not html_content.strip():
+        raise HTTPException(400, "De pagina bevat geen inhoud.")
+
+    # Generate a filename from the URL
+    # Use domain + path, sanitized for filesystem
+    domain = parsed.netloc.replace("www.", "")
+    path_part = parsed.path.strip("/").replace("/", "_")
+    if not path_part:
+        path_part = "index"
+    # Create a short hash to avoid collisions
+    url_hash = hashlib.md5(url.encode()).hexdigest()[:6]
+    safe_name = re.sub(r'[^\w\-.]', '_', f"{domain}_{path_part}")
+    # Truncate if too long
+    if len(safe_name) > 80:
+        safe_name = safe_name[:80]
+    filename = f"{safe_name}_{url_hash}.html"
+
+    # Save the HTML file
+    dest = config.DOCUMENTS_DIR / filename
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    # Process and index
+    try:
+        text = load_document(dest)
+        if not text or not text.strip():
+            os.remove(dest)
+            raise HTTPException(400, "Kon geen tekst uit de webpagina extraheren.")
+        chunks = chunk_text(text)
+        num_chunks = add_document(chunks, filename)
+        logger.info(f"URL geïndexeerd: {url} -> {filename} ({len(text)} tekens, {num_chunks} chunks)")
+
+        return {
+            "status": "ok",
+            "filename": filename,
+            "url": url,
+            "chunks": num_chunks,
+            "characters": len(text),
+        }
+    except ValueError as e:
+        if dest.exists():
+            os.remove(dest)
+        raise HTTPException(400, str(e))
+
+
 @app.get("/api/documents")
 async def get_documents():
     """List all uploaded documents (files on disk + index status)."""
@@ -498,6 +607,11 @@ Je personage heet: {char_name}
   Gebruik NOOIT cursieve tekst (*...*) voor acties — altijd [CONTEXT].
   Na elke [CONTEXT] regel volgt een lege regel en dan de gesproken tekst."""
 
+    # Add user profile context
+    user_name = load_settings().get("user_name", "").strip()
+    if user_name:
+        system += f"\n- De student heet {user_name}. Spreek de student aan met '{user_name}' en gebruik 'je' en 'jij'."
+
     try:
         opening = create_chat_completion(
             messages=[{"role": "user", "content": "Start het gesprek vanuit je rol."}],
@@ -557,12 +671,20 @@ Je personage heet: {char_name}
   Gebruik NOOIT cursieve tekst (*...*) voor acties — altijd [CONTEXT].
   Na elke [CONTEXT] regel volgt een lege regel en dan de gesproken tekst.{context_hint}"""
 
+    # Add user profile context
+    user_name = load_settings().get("user_name", "").strip()
+    if user_name:
+        system += f"\n- De student heet {user_name}. Spreek de student aan met '{user_name}' en gebruik 'je' en 'jij'."
+
     try:
-        tutor_reply = create_chat_completion(
+        result = create_chat_completion(
             messages=session.to_claude_messages(),
             system=system,
             max_tokens=512,
+            return_usage=True,
         )
+        tutor_reply = result["text"]
+        token_usage = result["usage"]
     except RuntimeError as e:
         session.messages.pop()
         raise HTTPException(503, str(e))
@@ -572,7 +694,7 @@ Je personage heet: {char_name}
     session.add_message("tutor", tutor_reply)
     logger.info(f"Sessie bericht [{req.user_id}]: student={req.message[:50]}... | tutor={tutor_reply[:50]}...")
 
-    return {"reply": tutor_reply, "message_count": len(session.messages)}
+    return {"reply": tutor_reply, "message_count": len(session.messages), "usage": token_usage}
 
 
 @app.post("/api/session/feedback")
@@ -867,7 +989,12 @@ async def health_check():
     """Check if the AI provider is configured."""
     settings = load_settings()
     provider = settings.get("provider", "anthropic")
-    configured = bool(settings.get("ai_api_key")) if provider != "ollama" else True
+    if provider == "ollama":
+        configured = True
+    elif provider == "openrouter":
+        configured = bool(settings.get("openrouter_api_key"))
+    else:
+        configured = bool(settings.get("ai_api_key"))
     return {
         "status": "ok" if configured else "no_key",
         "configured": configured,
@@ -883,6 +1010,10 @@ class SettingsRequest(BaseModel):
     ai_api_key: str = ""
     elevenlabs_api_key: str = ""
     ollama_base_url: str = ""
+    openrouter_api_key: str = ""
+    user_name: str = ""
+    user_education: str = ""
+    user_start_year: str = ""
 
 
 @app.get("/api/settings")
@@ -893,8 +1024,15 @@ async def get_settings():
     el_key = s.get("elevenlabs_api_key", "")
     masked_ai = (ai_key[:4] + "..." + ai_key[-4:]) if len(ai_key) > 8 else ("***" if ai_key else "")
     masked_el = (el_key[:4] + "..." + el_key[-4:]) if len(el_key) > 8 else ("***" if el_key else "")
+    or_key = s.get("openrouter_api_key", "")
+    masked_or = (or_key[:4] + "..." + or_key[-4:]) if len(or_key) > 8 else ("***" if or_key else "")
     provider = s.get("provider", "anthropic")
-    configured = bool(ai_key) if provider != "ollama" else True
+    if provider == "ollama":
+        configured = True
+    elif provider == "openrouter":
+        configured = bool(or_key)
+    else:
+        configured = bool(ai_key)
     return {
         "provider": provider,
         "model": s.get("model", config.CLAUDE_MODEL),
@@ -904,13 +1042,18 @@ async def get_settings():
         "elevenlabs_api_key_set": bool(el_key),
         "elevenlabs_api_key_masked": masked_el,
         "ollama_base_url": s.get("ollama_base_url", "http://localhost:11434"),
+        "openrouter_api_key_set": bool(or_key),
+        "openrouter_api_key_masked": masked_or,
+        "user_name": s.get("user_name", ""),
+        "user_education": s.get("user_education", ""),
+        "user_start_year": s.get("user_start_year", ""),
     }
 
 
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest):
     """Save provider, model, and API keys."""
-    valid_providers = {"anthropic", "openai", "ollama"}
+    valid_providers = {"anthropic", "openai", "ollama", "openrouter"}
     if req.provider not in valid_providers:
         raise HTTPException(400, f"Ongeldige provider: {req.provider}")
     new_settings = {"provider": req.provider, "model": req.model}
@@ -920,6 +1063,12 @@ async def update_settings(req: SettingsRequest):
         new_settings["elevenlabs_api_key"] = req.elevenlabs_api_key
     if req.ollama_base_url:
         new_settings["ollama_base_url"] = req.ollama_base_url
+    if req.openrouter_api_key:
+        new_settings["openrouter_api_key"] = req.openrouter_api_key
+    # User profile (always save, even if empty to allow clearing)
+    new_settings["user_name"] = req.user_name.strip()
+    new_settings["user_education"] = req.user_education.strip()
+    new_settings["user_start_year"] = req.user_start_year.strip()
     save_settings(new_settings)
     logger.info(f"Instellingen bijgewerkt: provider={req.provider}, model={req.model}")
     return {"status": "ok"}
@@ -965,16 +1114,23 @@ async def get_app_info():
                 "anthropic": {
                     "name": "Anthropic",
                     "description": "Claude AI — state-of-the-art reasoning en analyse",
-                    "models": ["Claude Sonnet 4.6", "Claude Sonnet 4", "Claude Haiku 4", "Claude Opus 4"],
+                    "models": ["Sonnet 4.6", "Opus 4.6", "Sonnet 4", "Opus 4", "Haiku 4", "3.5 Sonnet", "3.5 Haiku", "3 Opus"],
                     "features": ["Multimodal (vision)", "200K context window", "Tool use", "Streaming"],
                     "website": "https://console.anthropic.com",
                 },
                 "openai": {
                     "name": "OpenAI",
                     "description": "GPT-modellen — breed ecosysteem en integraties",
-                    "models": ["GPT-4o", "GPT-4o Mini", "GPT-4 Turbo", "GPT-3.5 Turbo"],
-                    "features": ["Multimodal (vision)", "128K context window", "Function calling", "Streaming"],
+                    "models": ["GPT-5.2", "5.2 Pro", "GPT-5.1", "GPT-5", "5 Mini", "5 Nano", "GPT-4.1", "4.1 Mini", "GPT-4o", "o4 Mini", "o3", "o3 Pro", "o1", "Codex"],
+                    "features": ["Responses API", "Multimodal (vision)", "128K+ context", "Reasoning (o-serie)"],
                     "website": "https://platform.openai.com",
+                },
+                "openrouter": {
+                    "name": "OpenRouter",
+                    "description": "Eén API-key voor 300+ modellen van alle providers",
+                    "models": ["GPT-5.2", "Claude Sonnet 4.6", "Gemini 2.5", "Llama 4", "Grok", "Mistral", "en 300+ meer..."],
+                    "features": ["300+ modellen", "Alle providers", "Eén API-key", "Pay-per-use"],
+                    "website": "https://openrouter.ai",
                 },
                 "ollama": {
                     "name": "Ollama (Lokaal)",
@@ -1014,6 +1170,11 @@ async def get_app_info():
                 "formats": ["Markdown (.md)", "Word (.docx)", "PDF (.pdf)"],
             },
         },
+        "user_profile": {
+            "name": settings.get("user_name", ""),
+            "education": settings.get("user_education", ""),
+            "start_year": settings.get("user_start_year", ""),
+        },
         "stats": {
             "documents_uploaded": len(doc_files),
             "unique_documents_indexed": len(docs),
@@ -1049,6 +1210,31 @@ async def get_ollama_models():
             return {"status": "ok", "models": models, "base_url": base_url}
     except Exception as e:
         return {"status": "error", "models": [], "error": str(e), "base_url": base_url}
+
+
+@app.get("/api/openrouter/models")
+async def get_openrouter_models():
+    """Fetch available models from OpenRouter."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get("https://openrouter.ai/api/v1/models")
+            resp.raise_for_status()
+            data = resp.json()
+            models = []
+            for m in data.get("data", []):
+                model_id = m.get("id", "")
+                name = m.get("name", model_id)
+                pricing = m.get("pricing", {})
+                prompt_cost = float(pricing.get("prompt", 0)) * 1_000_000  # per 1M tokens
+                models.append({
+                    "value": model_id,
+                    "label": f"{name}",
+                    "cost_per_m": round(prompt_cost, 2),
+                })
+            return {"status": "ok", "models": models, "total": len(models)}
+    except Exception as e:
+        return {"status": "error", "models": [], "error": str(e)}
 
 
 @app.get("/")
