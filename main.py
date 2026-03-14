@@ -458,6 +458,76 @@ async def crawl_website(req: CrawlWebsiteRequest):
     if not results:
         raise HTTPException(400, "Geen pagina's gevonden op deze website.")
 
+    def _fetch_full_page(page_url: str) -> str:
+        """Fetch a page ourselves and extract body text when Tavily truncates content."""
+        import urllib.request
+        from html.parser import HTMLParser
+
+        class _BodyTextExtractor(HTMLParser):
+            """Extract meaningful text from HTML, skipping nav/header/footer/script/style."""
+            SKIP_TAGS = {'script', 'style', 'nav', 'header', 'footer', 'noscript', 'iframe'}
+
+            def __init__(self):
+                super().__init__()
+                self._text_parts = []
+                self._skip_depth = 0
+                self._tag_stack = []
+
+            def handle_starttag(self, tag, attrs):
+                attrs_dict = dict(attrs)
+                self._tag_stack.append(tag)
+                # Skip nav/header/footer/script/style elements
+                if tag in self.SKIP_TAGS:
+                    self._skip_depth += 1
+                    return
+                # Skip elements with nav/menu/footer classes
+                cls = attrs_dict.get('class', '').lower()
+                if any(k in cls for k in ['nav', 'menu', 'footer', 'header', 'sidebar', 'cookie']):
+                    self._skip_depth += 1
+                    return
+                # Add line breaks for block elements
+                if tag in ('p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'br', 'tr', 'blockquote'):
+                    self._text_parts.append('\n')
+                # Add markdown-style headings
+                if tag in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
+                    level = int(tag[1])
+                    self._text_parts.append('#' * level + ' ')
+
+            def handle_endtag(self, tag):
+                if self._tag_stack and self._tag_stack[-1] == tag:
+                    self._tag_stack.pop()
+                if tag in self.SKIP_TAGS:
+                    self._skip_depth = max(0, self._skip_depth - 1)
+                # Check for class-based skip (approximate)
+                if self._skip_depth > 0 and tag in ('div', 'section', 'aside'):
+                    self._skip_depth = max(0, self._skip_depth - 1)
+
+            def handle_data(self, data):
+                if self._skip_depth > 0:
+                    return
+                text = data.strip()
+                if text:
+                    self._text_parts.append(text)
+
+            def get_text(self):
+                return '\n'.join(self._text_parts)
+
+        try:
+            req = urllib.request.Request(page_url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+            })
+            resp = urllib.request.urlopen(req, timeout=15)
+            html = resp.read().decode('utf-8', errors='replace')
+            parser = _BodyTextExtractor()
+            parser.feed(html)
+            text = parser.get_text()
+            # Clean up excessive whitespace
+            text = re.sub(r'\n{3,}', '\n\n', text)
+            return text.strip()
+        except Exception as e:
+            logger.warning(f"Fallback fetch mislukt voor {page_url}: {e}")
+            return ""
+
     def _clean_crawled_content(text: str) -> str:
         """Strip navigation menus, headers and footers — keep only the body content."""
         lines = text.split("\n")
@@ -546,6 +616,15 @@ async def crawl_website(req: CrawlWebsiteRequest):
 
         # Clean content: remove nav, header, footer
         cleaned_content = _clean_crawled_content(raw_content)
+
+        # If Tavily truncated the content, fetch ourselves for full text
+        # (Tavily often returns ~15KB while pages have 40KB+ of content)
+        if len(raw_content) < 20000 and page_url:
+            fallback_text = _fetch_full_page(page_url)
+            if fallback_text and len(fallback_text) > len(cleaned_content) * 1.2:
+                logger.info(f"Fallback fetch voor {page_url}: Tavily {len(cleaned_content)} -> eigen {len(fallback_text)} tekens")
+                cleaned_content = fallback_text
+
         if not cleaned_content.strip():
             continue
 
