@@ -2018,7 +2018,7 @@
                         <span class="size">${formatSize(d.size)}</span>
                         ${badge}
                     </div>
-                    <button class="delete-btn" onclick="deleteDoc('${d.name}')" title="Verwijderen">&times;</button>
+                    <button class="delete-btn" onclick="deleteDoc('${d.name}', '${d.display_name || d.name}')" title="Verwijderen">&times;</button>
                 </li>`;
             }).join('');
         } catch (err) {
@@ -2026,11 +2026,12 @@
         }
     }
 
-    async function deleteDoc(name) {
-        if (!confirm(`Weet je zeker dat je "${name}" wilt verwijderen?`)) return;
+    async function deleteDoc(name, displayName) {
+        const label = displayName || name;
+        if (!confirm(`Weet je zeker dat je "${label}" wilt verwijderen?`)) return;
         await fetch(`${API}/api/documents/${encodeURIComponent(name)}`, { method: 'DELETE' });
         loadDocuments();
-        showStatus(`${name} verwijderd`, 'success');
+        showStatus(`${label} verwijderd`, 'success');
     }
 
     // ── URL Upload ──────────────────────────────────────────────
