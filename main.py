@@ -549,18 +549,23 @@ async def crawl_website(req: CrawlWebsiteRequest):
         if not cleaned_content.strip():
             continue
 
-        # Get page title from cleaned content
+        # Get page title: prefer largest heading (# or ##), skip small ###### headings
         page_title = ""
         for line in cleaned_content.split("\n"):
-            line = line.strip()
-            if line.startswith("#"):
-                page_title = line.lstrip("#").strip()
-                break
-            elif line and not page_title:
-                page_title = line[:120]
+            stripped = line.strip()
+            if not stripped:
+                continue
+            # Prefer # or ## headings (main titles)
+            if re.match(r'^#{1,2}\s+', stripped):
+                candidate = stripped.lstrip("#").strip()
+                if len(candidate) > 5:  # Skip very short/incomplete titles
+                    page_title = candidate
+                    break
         if not page_title:
+            # Fallback: use URL path as readable title
             page_parsed = _urlparse(page_url)
-            page_title = page_parsed.path.strip("/").replace("/", " / ").title() or domain
+            path_parts = page_parsed.path.strip("/").split("/")
+            page_title = " — ".join(p.replace("-", " ").title() for p in path_parts if p) or domain
 
         combined_parts.append(f"\n\n---\n\n## Bron: {page_url}\n\n{cleaned_content}")
         page_details.append({
@@ -590,6 +595,17 @@ async def crawl_website(req: CrawlWebsiteRequest):
     try:
         with open(dest, "w", encoding="utf-8") as f:
             f.write(combined_text)
+
+        # Save metadata mapping filename -> original URL for display
+        meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
+        crawl_meta = {}
+        if meta_path.exists():
+            try:
+                crawl_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                crawl_meta = {}
+        crawl_meta[filename] = url
+        meta_path.write_text(json.dumps(crawl_meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
         text = load_document(dest)
         if not text or not text.strip():
@@ -631,16 +647,29 @@ async def get_documents():
     except Exception:
         indexed_docs = set()
 
+    # Load crawl metadata for display names
+    crawl_meta = {}
+    meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
+    if meta_path.exists():
+        try:
+            crawl_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            crawl_meta = {}
+
     # List all physical files in the documents directory
     file_info = []
     if config.DOCUMENTS_DIR.exists():
         for f in sorted(config.DOCUMENTS_DIR.iterdir()):
             if f.is_file() and f.suffix.lower() in allowed:
-                file_info.append({
+                doc = {
                     "name": f.name,
                     "size": f.stat().st_size,
                     "indexed": f.name in indexed_docs,
-                })
+                }
+                # If this file was crawled, show the original URL as display name
+                if f.name in crawl_meta:
+                    doc["display_name"] = crawl_meta[f.name]
+                file_info.append(doc)
     return {"documents": file_info}
 
 
@@ -655,6 +684,16 @@ async def remove_document(doc_name: str):
     image_dir = config.IMAGES_DIR / Path(doc_name).stem
     if image_dir.exists():
         shutil.rmtree(image_dir)
+    # Clean up crawl metadata
+    meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
+    if meta_path.exists():
+        try:
+            crawl_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if doc_name in crawl_meta:
+                del crawl_meta[doc_name]
+                meta_path.write_text(json.dumps(crawl_meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
     return {"status": "ok", "chunks_deleted": deleted}
 
 

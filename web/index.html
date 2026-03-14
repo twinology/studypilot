@@ -2008,10 +2008,13 @@
                 const badge = d.indexed
                     ? '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#dcfce7;color:#166534;font-weight:600;margin-left:8px">Geïndexeerd</span>'
                     : '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:600;margin-left:8px">Niet geïndexeerd</span>';
+                const displayName = d.display_name
+                    ? `<a href="${d.display_name}" target="_blank" style="color:var(--primary);text-decoration:none" title="${d.name}">${d.display_name}</a>`
+                    : `<span>${d.name}</span>`;
                 return `
                 <li class="doc-item">
                     <div>
-                        <span class="name">${d.name}</span>
+                        <span class="name">${displayName}</span>
                         <span class="size">${formatSize(d.size)}</span>
                         ${badge}
                     </div>
@@ -2197,7 +2200,6 @@
                         <span class="crawl-page-title">${page.title || 'Onbekende pagina'}</span>
                         <span class="crawl-page-url" title="${page.url}">${page.url}</span>
                         <div class="crawl-page-meta">
-                            <span>${page.chunks} chunks</span>
                             <span>${page.characters.toLocaleString()} tekens</span>
                         </div>
                         <span class="crawl-page-toggle">▼</span>
