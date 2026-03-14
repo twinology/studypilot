@@ -55,12 +55,22 @@
             font-size: 13px;
         }
         .copyright-footer {
-            text-align: center;
-            padding: 12px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 24px;
             font-size: 12px;
             color: #fbe100;
             border-top: 1px solid var(--border);
             background: #3a7c22;
+            position: relative;
+        }
+        .footer-version {
+            position: absolute;
+            right: 24px;
+            font-weight: 600;
+            opacity: 0.85;
+            letter-spacing: 0.5px;
         }
         .rag-toggle-wrapper {
             margin-left: auto;
@@ -644,6 +654,55 @@
         .status-bar.success { background: #f0fdf4; color: var(--success); }
         .hidden { display: none !important; }
 
+        /* ── Upload progress overlay ─────────────── */
+        .upload-progress {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            background: rgba(255,255,255,0.95);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 32px;
+        }
+        .upload-progress.active { display: flex; }
+        .upload-spinner {
+            width: 48px; height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .upload-progress-title {
+            font-size: 16px; font-weight: 700; color: var(--text);
+        }
+        .upload-progress-step {
+            font-size: 13px; color: var(--text-muted); text-align: center;
+            max-width: 400px; line-height: 1.5;
+        }
+        .upload-progress-steps {
+            list-style: none; text-align: left; font-size: 13px;
+            width: 100%; max-width: 360px;
+        }
+        .upload-progress-steps li {
+            padding: 6px 0; display: flex; align-items: center; gap: 8px;
+            color: var(--text-muted);
+        }
+        .upload-progress-steps li.done { color: var(--success); }
+        .upload-progress-steps li.active { color: var(--text); font-weight: 600; }
+        .upload-progress-steps li .step-icon { width: 20px; text-align: center; }
+        .upload-progress-bar {
+            width: 100%; max-width: 360px; height: 6px;
+            background: var(--border); border-radius: 3px; overflow: hidden;
+        }
+        .upload-progress-bar-fill {
+            height: 100%; background: linear-gradient(90deg, var(--primary), var(--success));
+            border-radius: 3px; transition: width 0.4s ease;
+            width: 0%;
+        }
+
         /* ── Conversations panel ────────────────── */
         .conversations-panel { padding: 16px 24px; overflow-y: auto; display: flex; flex-direction: column; }
         .conv-toolbar {
@@ -781,6 +840,71 @@
         .lock-overlay a { color: var(--primary); cursor: pointer; text-decoration: underline; }
         .panel { position: relative; }
 
+        /* ── Info panel ───────────────────────── */
+        .info-panel { padding: 24px; overflow-y: auto; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; }
+        @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
+        .info-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px; transition: box-shadow 0.2s;
+        }
+        .info-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .info-card.full-width { grid-column: 1 / -1; }
+        .info-card-header {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+            padding-bottom: 10px; border-bottom: 1px solid var(--border);
+        }
+        .info-card-icon { font-size: 22px; }
+        .info-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
+        .info-card-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+        .info-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 0; font-size: 13px;
+        }
+        .info-row:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
+        .info-label { color: var(--text-muted); font-weight: 500; }
+        .info-value { color: var(--text); font-weight: 600; text-align: right; }
+        .info-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 600;
+        }
+        .info-badge.green { background: #dcfce7; color: #166534; }
+        .info-badge.blue { background: #dbeafe; color: #1e40af; }
+        .info-badge.yellow { background: #fef3c7; color: #92400e; }
+        .info-badge.red { background: #fecaca; color: #991b1b; }
+        .info-badge.purple { background: #ede9fe; color: #5b21b6; }
+        .info-badge.gray { background: #f1f5f9; color: #475569; }
+        .info-tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+        .info-tag {
+            display: inline-block; padding: 2px 8px; background: #f1f5f9;
+            border-radius: 4px; font-size: 11px; color: var(--text-muted);
+        }
+        .info-hero {
+            display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+        }
+        .info-hero-logo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+        .info-hero-text h2 { font-size: 20px; font-weight: 800; color: var(--text); margin: 0; }
+        .info-hero-text .version-tag {
+            display: inline-block; margin-top: 4px; padding: 3px 10px;
+            background: linear-gradient(135deg, #3a7c22, #16a34a); color: white;
+            border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+        }
+        .info-hero-text p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+        .info-link {
+            color: var(--primary); text-decoration: none; font-size: 12px; font-weight: 500;
+        }
+        .info-link:hover { text-decoration: underline; }
+        .info-provider-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        @media (max-width: 768px) { .info-provider-grid { grid-template-columns: 1fr; } }
+        .info-provider-card {
+            border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+            text-align: center; transition: all 0.2s;
+        }
+        .info-provider-card.active { border-color: var(--success); background: #f0fdf4; }
+        .info-provider-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+        .info-provider-desc { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+        .info-provider-models { font-size: 11px; color: var(--text); line-height: 1.6; }
+
         /* ── RAG images in messages ──────────── */
         .message-images {
             display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
@@ -809,9 +933,10 @@
         <div class="tab active" data-tab="docs">Kennisbank</div>
         <div class="tab" data-tab="chat">Chat</div>
         <div class="tab" data-tab="practice">Oefenen</div>
-        <div class="tab" data-tab="conversations">Gesprekken</div>
+        <div class="tab" data-tab="conversations">Rapporten</div>
         <div class="tab" data-tab="logs">Logs</div>
         <div class="tab" data-tab="setup">⚙ Setup</div>
+        <div class="tab" data-tab="info">ℹ Info</div>
         <div class="rag-toggle-wrapper">
             <span class="rag-toggle-label active" id="ragLabel">Kennisbank</span>
             <label class="toggle-switch" title="Kennisbank in-/uitschakelen">
@@ -832,6 +957,21 @@
     <main class="content">
         <!-- ── Kennisbank ──────────────────────────── -->
         <div id="docsPanel" class="panel docs-panel active">
+            <!-- Upload progress overlay -->
+            <div class="upload-progress" id="uploadProgress">
+                <div class="upload-spinner"></div>
+                <div class="upload-progress-title" id="uploadProgressTitle">Document verwerken...</div>
+                <div class="upload-progress-step" id="uploadProgressFile"></div>
+                <div class="upload-progress-bar"><div class="upload-progress-bar-fill" id="uploadProgressBar"></div></div>
+                <ul class="upload-progress-steps" id="uploadProgressSteps">
+                    <li id="stepUpload"><span class="step-icon">○</span>Bestand uploaden</li>
+                    <li id="stepText"><span class="step-icon">○</span>Tekst extraheren &amp; chunken</li>
+                    <li id="stepImages"><span class="step-icon">○</span>Afbeeldingen extraheren</li>
+                    <li id="stepEmbed"><span class="step-icon">○</span>Embeddings genereren (kan even duren)</li>
+                    <li id="stepDone"><span class="step-icon">○</span>Klaar!</li>
+                </ul>
+            </div>
+
             <div class="upload-zone" id="uploadZone">
                 <h3>Sleep documenten hierheen</h3>
                 <p>of klik om bestanden te selecteren</p>
@@ -929,13 +1069,13 @@
             </div>
         </div>
 
-        <!-- ── Gesprekken ──────────────────────────────── -->
+        <!-- ── Rapporten ──────────────────────────────── -->
         <div id="conversationsPanel" class="panel conversations-panel">
             <!-- List view -->
             <div id="convListView">
                 <div class="conv-toolbar">
                     <select id="convTypeFilter">
-                        <option value="">Alle gesprekken</option>
+                        <option value="">Alle rapporten</option>
                         <option value="chat">Chats</option>
                         <option value="session">Oefensessies</option>
                     </select>
@@ -944,7 +1084,7 @@
                 </div>
                 <ul class="conv-list" id="convList">
                     <li class="conv-empty">
-                        <h3>Nog geen gesprekken opgeslagen</h3>
+                        <h3>Nog geen rapporten opgeslagen</h3>
                         <p>Chats en oefensessies worden hier automatisch bewaard.</p>
                     </li>
                 </ul>
@@ -975,6 +1115,10 @@
                         <div class="provider-name">OpenAI</div>
                         <div class="provider-desc">GPT-4o, GPT-4, GPT-3.5</div>
                     </div>
+                    <div class="provider-radio" data-provider="ollama">
+                        <div class="provider-name">🏠 Ollama</div>
+                        <div class="provider-desc">Lokaal — geen API-key nodig</div>
+                    </div>
                 </div>
 
                 <div class="setup-field">
@@ -990,6 +1134,19 @@
                     </label>
                     <input type="password" id="setupAiKey" placeholder="sk-...">
                     <div class="field-hint">Je API key van Anthropic of OpenAI. Wordt lokaal opgeslagen in settings.json.</div>
+                </div>
+            </div>
+
+            <div class="setup-section" id="ollamaSection" style="display:none;">
+                <h3>🏠 Ollama configuratie</h3>
+                <div class="setup-field">
+                    <label for="setupOllamaUrl">Ollama URL</label>
+                    <input type="text" id="setupOllamaUrl" value="http://localhost:11434" placeholder="http://localhost:11434">
+                    <div class="field-hint">URL van je lokale Ollama server. Start Ollama met: <code>ollama serve</code></div>
+                </div>
+                <div class="setup-field">
+                    <label>Beschikbare modellen <button class="btn btn-sm btn-secondary" id="refreshOllamaModels" style="margin-left:8px;font-size:11px;padding:2px 8px;">↻ Vernieuwen</button></label>
+                    <div id="ollamaModelList" style="font-size:12px;color:var(--text-muted);margin-top:4px;">Klik op vernieuwen om modellen op te halen...</div>
                 </div>
             </div>
 
@@ -1031,6 +1188,171 @@
                 </table>
             </div>
         </div>
+
+        <!-- ── Info ──────────────────────────────────── -->
+        <div id="infoPanel" class="panel info-panel">
+            <div class="info-hero">
+                <img src="/images/logo.png" alt="StudyPilot" class="info-hero-logo">
+                <div class="info-hero-text">
+                    <h2>StudyPilot</h2>
+                    <span class="version-tag" id="infoVersionTag">v2.1.1</span>
+                    <p>Minder zoeken, meer oefenen en sneller leren!</p>
+                </div>
+            </div>
+
+            <div class="info-grid">
+                <!-- App Info -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">📋</span>
+                        <div>
+                            <div class="info-card-title">Applicatie</div>
+                            <div class="info-card-subtitle">Versie &amp; licentie</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">Versie</span><span class="info-value" id="infoVersion">-</span></div>
+                    <div class="info-row"><span class="info-label">Editie</span><span class="info-value" id="infoEdition">-</span></div>
+                    <div class="info-row"><span class="info-label">Licentie</span><span class="info-value"><span class="info-badge green">MIT</span></span></div>
+                    <div class="info-row"><span class="info-label">Auteur</span><span class="info-value">twinology.ai</span></div>
+                    <div class="info-row"><span class="info-label">Repository</span><span class="info-value"><a class="info-link" href="https://github.com/twinology/studypilot" target="_blank">GitHub ↗</a></span></div>
+                </div>
+
+                <!-- Active Config -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">⚡</span>
+                        <div>
+                            <div class="info-card-title">Actieve configuratie</div>
+                            <div class="info-card-subtitle">Huidige AI-instellingen</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">Provider</span><span class="info-value" id="infoActiveProvider">-</span></div>
+                    <div class="info-row"><span class="info-label">Model</span><span class="info-value" id="infoActiveModel">-</span></div>
+                    <div class="info-row"><span class="info-label">AI Key</span><span class="info-value" id="infoAiKeyStatus">-</span></div>
+                    <div class="info-row"><span class="info-label">ElevenLabs</span><span class="info-value" id="infoElKeyStatus">-</span></div>
+                    <div class="info-row"><span class="info-label">Framework</span><span class="info-value"><span class="info-badge blue">FastAPI</span></span></div>
+                </div>
+
+                <!-- AI Providers -->
+                <div class="info-card full-width">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">🤖</span>
+                        <div>
+                            <div class="info-card-title">Ondersteunde AI Providers</div>
+                            <div class="info-card-subtitle">Cloud &amp; lokale modellen</div>
+                        </div>
+                    </div>
+                    <div class="info-provider-grid" id="infoProviderGrid">
+                        <div class="info-provider-card" id="infoProvAnthro">
+                            <div class="info-provider-name">🟣 Anthropic</div>
+                            <div class="info-provider-desc">Claude AI — state-of-the-art reasoning</div>
+                            <div class="info-provider-models">
+                                Claude Sonnet 4.6 · Sonnet 4<br>Haiku 4 · Opus 4
+                            </div>
+                            <div class="info-tag-row" style="justify-content:center;margin-top:8px;">
+                                <span class="info-tag">Vision</span>
+                                <span class="info-tag">200K context</span>
+                                <span class="info-tag">Tool use</span>
+                            </div>
+                            <div style="margin-top:8px;"><a class="info-link" href="https://console.anthropic.com" target="_blank">console.anthropic.com ↗</a></div>
+                        </div>
+                        <div class="info-provider-card" id="infoProvOpenAI">
+                            <div class="info-provider-name">🟢 OpenAI</div>
+                            <div class="info-provider-desc">GPT-modellen — breed ecosysteem</div>
+                            <div class="info-provider-models">
+                                GPT-4o · GPT-4o Mini<br>GPT-4 Turbo · GPT-3.5 Turbo
+                            </div>
+                            <div class="info-tag-row" style="justify-content:center;margin-top:8px;">
+                                <span class="info-tag">Vision</span>
+                                <span class="info-tag">128K context</span>
+                                <span class="info-tag">Functions</span>
+                            </div>
+                            <div style="margin-top:8px;"><a class="info-link" href="https://platform.openai.com" target="_blank">platform.openai.com ↗</a></div>
+                        </div>
+                        <div class="info-provider-card" id="infoProvOllama">
+                            <div class="info-provider-name">🏠 Ollama (Lokaal)</div>
+                            <div class="info-provider-desc">Privé, lokaal, geen API-key</div>
+                            <div class="info-provider-models">
+                                Llama 3.1 · Mistral · Gemma 2<br>Phi-3 · CodeLlama · en meer
+                            </div>
+                            <div class="info-tag-row" style="justify-content:center;margin-top:8px;">
+                                <span class="info-tag">100% lokaal</span>
+                                <span class="info-tag">Gratis</span>
+                                <span class="info-tag">Privacy</span>
+                            </div>
+                            <div style="margin-top:8px;"><a class="info-link" href="https://ollama.com" target="_blank">ollama.com ↗</a></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multimodal RAG -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">🔍</span>
+                        <div>
+                            <div class="info-card-title">Multimodal RAG</div>
+                            <div class="info-card-subtitle">Retrieval-Augmented Generation</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">Vector DB</span><span class="info-value"><span class="info-badge purple">ChromaDB</span></span></div>
+                    <div class="info-row"><span class="info-label">Embedding model</span><span class="info-value" id="infoEmbedding">-</span></div>
+                    <div class="info-row"><span class="info-label">Chunk grootte</span><span class="info-value" id="infoChunkSize">-</span></div>
+                    <div class="info-row"><span class="info-label">Image extractie</span><span class="info-value" id="infoImageExtract">-</span></div>
+                    <div class="info-row"><span class="info-label">Max. afbeeldingen/query</span><span class="info-value" id="infoMaxImages">-</span></div>
+                </div>
+
+                <!-- ElevenLabs -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">🔊</span>
+                        <div>
+                            <div class="info-card-title">ElevenLabs TTS</div>
+                            <div class="info-card-subtitle">Text-to-Speech met emotie</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">Model</span><span class="info-value" id="infoTTSModel">-</span></div>
+                    <div class="info-row"><span class="info-label">Stemmen</span><span class="info-value" id="infoVoices">-</span></div>
+                    <div class="info-row">
+                        <span class="info-label">Emoties</span>
+                        <span class="info-value" id="infoEmotionCount">-</span>
+                    </div>
+                    <div id="infoEmotionTags" class="info-tag-row" style="margin-top:8px;"></div>
+                    <div style="margin-top:8px;"><a class="info-link" href="https://elevenlabs.io" target="_blank">elevenlabs.io ↗</a></div>
+                </div>
+
+                <!-- Features -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">✨</span>
+                        <div>
+                            <div class="info-card-title">Features</div>
+                            <div class="info-card-subtitle">Beschikbare functionaliteiten</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">🤖 AI Chat</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
+                    <div class="info-row"><span class="info-label">🔍 Multimodal RAG</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
+                    <div class="info-row"><span class="info-label">🎭 Oefensessies</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
+                    <div class="info-row"><span class="info-label">🔊 ElevenLabs TTS</span><span class="info-value" id="infoTTSStatus"><span class="info-badge yellow">Optioneel</span></span></div>
+                    <div class="info-row"><span class="info-label">📤 Export (MD/DOCX/PDF)</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
+                    <div class="info-row"><span class="info-label">🤖 Telegram bot</span><span class="info-value"><span class="info-badge yellow">Optioneel</span></span></div>
+                </div>
+
+                <!-- Stats -->
+                <div class="info-card">
+                    <div class="info-card-header">
+                        <span class="info-card-icon">📊</span>
+                        <div>
+                            <div class="info-card-title">Statistieken</div>
+                            <div class="info-card-subtitle">Kennisbank overzicht</div>
+                        </div>
+                    </div>
+                    <div class="info-row"><span class="info-label">Documenten</span><span class="info-value" id="infoDocCount">-</span></div>
+                    <div class="info-row"><span class="info-label">Geïndexeerd</span><span class="info-value" id="infoIndexCount">-</span></div>
+                    <div class="info-row"><span class="info-label">Afbeeldingen</span><span class="info-value" id="infoImgCount">-</span></div>
+                    <div class="info-row"><span class="info-label">Python</span><span class="info-value" id="infoPython">-</span></div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Feedback overlay -->
@@ -1056,12 +1378,13 @@
     });
 
     // ── Status bar ─────────────────────────────────
-    function showStatus(msg, type = 'success') {
+    function showStatus(msg, type = 'success', duration = 6000) {
         const bar = document.getElementById('statusBar');
         bar.textContent = msg;
         bar.className = `status-bar ${type}`;
         bar.classList.remove('hidden');
-        setTimeout(() => bar.classList.add('hidden'), 4000);
+        if (showStatus._timer) clearTimeout(showStatus._timer);
+        showStatus._timer = setTimeout(() => bar.classList.add('hidden'), duration);
     }
 
     // ── RAG toggle ────────────────────────────────
@@ -1137,21 +1460,85 @@
     });
     fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
+    // Upload progress helpers
+    const uploadOverlay = document.getElementById('uploadProgress');
+    const uploadBar = document.getElementById('uploadProgressBar');
+    const uploadTitle = document.getElementById('uploadProgressTitle');
+    const uploadFile = document.getElementById('uploadProgressFile');
+    const stepIds = ['stepUpload', 'stepText', 'stepImages', 'stepEmbed', 'stepDone'];
+
+    function setUploadStep(stepIndex, total) {
+        stepIds.forEach((id, i) => {
+            const li = document.getElementById(id);
+            const icon = li.querySelector('.step-icon');
+            li.className = '';
+            if (i < stepIndex) { li.classList.add('done'); icon.textContent = '✓'; }
+            else if (i === stepIndex) { li.classList.add('active'); icon.textContent = '▸'; }
+            else { icon.textContent = '○'; }
+        });
+        const pct = Math.round((stepIndex / (stepIds.length - 1)) * 100);
+        uploadBar.style.width = pct + '%';
+    }
+
+    function showUploadProgress(filename) {
+        uploadFile.textContent = filename;
+        uploadTitle.textContent = 'Document verwerken...';
+        setUploadStep(0);
+        uploadOverlay.classList.add('active');
+    }
+
+    function hideUploadProgress() {
+        uploadOverlay.classList.remove('active');
+    }
+
     async function handleFiles(files) {
-        for (const file of files) {
+        const totalFiles = files.length;
+        for (let idx = 0; idx < totalFiles; idx++) {
+            const file = files[idx];
+            const label = totalFiles > 1 ? `${file.name} (${idx + 1}/${totalFiles})` : file.name;
+
+            showUploadProgress(label);
+
             const form = new FormData();
             form.append('file', file);
+
             try {
-                showStatus(`Uploaden: ${file.name}...`, 'success');
-                const res = await fetch(`${API}/api/upload`, { method: 'POST', body: form });
+                // Step 1: Uploaden
+                setUploadStep(0);
+                uploadTitle.textContent = `Uploaden: ${file.name}`;
+
+                // Step 2: Tekst extraheren — we simuleren de stappen, het backend doet alles in 1 call
+                // Na korte delay: tekst + chunking
+                const uploadPromise = fetch(`${API}/api/upload`, { method: 'POST', body: form });
+
+                // Toon progressieve stappen terwijl we wachten
+                setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(1); uploadTitle.textContent = 'Tekst extraheren en chunken...'; } }, 800);
+                setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(2); uploadTitle.textContent = 'Afbeeldingen verwerken...'; } }, 2500);
+                setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(3); uploadTitle.textContent = 'Embeddings genereren (dit kan even duren)...'; } }, 5000);
+
+                const res = await uploadPromise;
                 const data = await res.json();
+
                 if (!res.ok) throw new Error(data.detail || 'Upload mislukt');
-                const imgInfo = data.image_chunks ? `, ${data.image_chunks} afbeelding-chunks` : '';
-                showStatus(`${file.name} verwerkt (${data.chunks} chunks${imgInfo})`, 'success');
+
+                // Step 5: Done
+                setUploadStep(4);
+                uploadTitle.textContent = 'Verwerking voltooid!';
+                uploadFile.textContent = `${data.chunks} tekst-chunks` + (data.image_chunks ? ` + ${data.image_chunks} afbeelding-chunks` : '');
+
+                // Documentenlijst direct bijwerken
+                loadDocuments();
+
+                // Kort resultaat tonen, dan doorgaan
+                await new Promise(r => setTimeout(r, 1500));
+
+                showStatus(`✓ ${file.name} verwerkt — ${data.chunks} chunks${data.image_chunks ? ` + ${data.image_chunks} afbeeldingen` : ''}`, 'success');
             } catch (err) {
+                hideUploadProgress();
                 showStatus(`Fout bij ${file.name}: ${err.message}`, 'error');
             }
         }
+        hideUploadProgress();
         loadDocuments();
     }
 
@@ -1163,15 +1550,20 @@
                 docList.innerHTML = '<li style="color:var(--text-muted);font-size:14px;padding:12px">Nog geen documenten geüpload</li>';
                 return;
             }
-            docList.innerHTML = data.documents.map(d => `
+            docList.innerHTML = data.documents.map(d => {
+                const badge = d.indexed
+                    ? '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#dcfce7;color:#166534;font-weight:600;margin-left:8px">Geïndexeerd</span>'
+                    : '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:600;margin-left:8px">Niet geïndexeerd</span>';
+                return `
                 <li class="doc-item">
                     <div>
                         <span class="name">${d.name}</span>
                         <span class="size">${formatSize(d.size)}</span>
+                        ${badge}
                     </div>
                     <button class="delete-btn" onclick="deleteDoc('${d.name}')" title="Verwijderen">&times;</button>
-                </li>
-            `).join('');
+                </li>`;
+            }).join('');
         } catch (err) {
             console.error('Fout bij laden documenten:', err);
         }
@@ -1189,13 +1581,32 @@
         const btn = document.getElementById('reindexBtn');
         btn.disabled = true;
         btn.textContent = '⟳ Bezig...';
+
+        showUploadProgress('Alle documenten');
+        uploadTitle.textContent = 'Herindexering gestart...';
+
         try {
-            showStatus('Herindexering gestart...', 'success');
-            const res = await fetch(`${API}/api/reindex`, { method: 'POST' });
+            setUploadStep(0);
+            const reindexPromise = fetch(`${API}/api/reindex`, { method: 'POST' });
+
+            setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(1); uploadTitle.textContent = 'Tekst extraheren en chunken...'; } }, 1000);
+            setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(2); uploadTitle.textContent = 'Afbeeldingen verwerken...'; } }, 4000);
+            setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(3); uploadTitle.textContent = 'Embeddings genereren (dit kan even duren)...'; } }, 8000);
+
+            const res = await reindexPromise;
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || 'Herindexering mislukt');
-            showStatus(`Herindexering voltooid: ${data.documents} documenten, ${data.total_chunks} chunks`, 'success');
+
+            setUploadStep(4);
+            uploadTitle.textContent = 'Herindexering voltooid!';
+            uploadFile.textContent = `${data.documents} documenten, ${data.total_chunks} chunks`;
+            await new Promise(r => setTimeout(r, 1500));
+
+            hideUploadProgress();
+            showStatus(`✓ Herindexering voltooid: ${data.documents} documenten, ${data.total_chunks} chunks`, 'success');
+            loadDocuments();
         } catch (err) {
+            hideUploadProgress();
             showStatus(`Herindexering fout: ${err.message}`, 'error');
         } finally {
             btn.disabled = false;
@@ -1945,7 +2356,7 @@
             if (data.conversations.length === 0) {
                 convList.innerHTML = `
                     <li class="conv-empty">
-                        <h3>Nog geen gesprekken opgeslagen</h3>
+                        <h3>Nog geen rapporten opgeslagen</h3>
                         <p>Chats en oefensessies worden hier automatisch bewaard.</p>
                     </li>`;
                 return;
@@ -1956,7 +2367,7 @@
                     : '<span class="conv-type-badge conv-type-chat">Chat</span>';
                 const title = c.type === 'session'
                     ? (c.metadata.scenario_name || 'Oefensessie')
-                    : (c.metadata.topic || 'Chat gesprek');
+                    : (c.metadata.topic || 'Chat rapport');
                 const dateStr = c.timestamp ? new Date(c.timestamp).toLocaleString('nl-NL') : '';
                 const difficulty = c.metadata.scenario_difficulty
                     ? ` &middot; ${c.metadata.scenario_difficulty}`
@@ -1994,7 +2405,7 @@
 
             const title = data.type === 'session'
                 ? (data.metadata.scenario_name || 'Oefensessie')
-                : 'Chat gesprek';
+                : 'Chat rapport';
             document.getElementById('convDetailTitle').textContent = title;
 
             const msgContainer = document.getElementById('convDetailMessages');
@@ -2033,11 +2444,11 @@
     });
 
     async function deleteConversation(convId) {
-        if (!confirm('Weet je zeker dat je dit gesprek wilt verwijderen?')) return;
+        if (!confirm('Weet je zeker dat je dit rapport wilt verwijderen?')) return;
         try {
             await fetch(`${API}/api/conversations/${convId}`, { method: 'DELETE' });
             loadConversations();
-            showStatus('Gesprek verwijderd', 'success');
+            showStatus('Rapport verwijderd', 'success');
         } catch (err) {
             showStatus(`Fout: ${err.message}`, 'error');
         }
@@ -2114,6 +2525,7 @@
             { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
             { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
         ],
+        ollama: [],  // populated dynamically
     };
 
     let currentProvider = 'anthropic';
@@ -2121,11 +2533,51 @@
 
     function updateModelOptions(provider, selectedModel) {
         const select = document.getElementById('setupModel');
+        const ollamaSection = document.getElementById('ollamaSection');
+
+        // Show/hide Ollama config
+        ollamaSection.style.display = provider === 'ollama' ? '' : 'none';
+
+        if (provider === 'ollama') {
+            // Fetch models from Ollama server
+            fetchOllamaModels(selectedModel);
+            return;
+        }
+
         const models = PROVIDER_MODELS[provider] || [];
         select.innerHTML = models.map(m =>
             `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}</option>`
         ).join('');
     }
+
+    async function fetchOllamaModels(selectedModel) {
+        const select = document.getElementById('setupModel');
+        const listEl = document.getElementById('ollamaModelList');
+        select.innerHTML = '<option value="">Modellen laden...</option>';
+        try {
+            const res = await fetch(`${API}/api/ollama/models`);
+            const data = await res.json();
+            if (data.status === 'ok' && data.models.length > 0) {
+                PROVIDER_MODELS.ollama = data.models;
+                select.innerHTML = data.models.map(m =>
+                    `<option value="${m.value}" ${m.value === selectedModel ? 'selected' : ''}>${m.label}</option>`
+                ).join('');
+                listEl.innerHTML = `<span style="color:var(--success)">✓ ${data.models.length} modellen gevonden op ${data.base_url}</span>`;
+            } else {
+                select.innerHTML = '<option value="">Geen modellen gevonden</option>';
+                const err = data.error || 'Geen modellen beschikbaar';
+                listEl.innerHTML = `<span style="color:var(--danger)">✗ ${err}</span><br>
+                    <span style="font-size:11px;color:var(--text-muted)">Zorg dat Ollama draait: <code>ollama serve</code> en download een model: <code>ollama pull llama3.1</code></span>`;
+            }
+        } catch (err) {
+            select.innerHTML = '<option value="">Verbinding mislukt</option>';
+            listEl.innerHTML = `<span style="color:var(--danger)">✗ Kan geen verbinding maken met Ollama</span>`;
+        }
+    }
+
+    document.getElementById('refreshOllamaModels').addEventListener('click', () => {
+        fetchOllamaModels(document.getElementById('setupModel').value);
+    });
 
     function switchToSetup() {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -2190,6 +2642,11 @@
                 elKeyStatus.className = 'setup-status';
             }
 
+            // Load Ollama URL if present
+            if (data.ollama_base_url) {
+                document.getElementById('setupOllamaUrl').value = data.ollama_base_url;
+            }
+
             // Update model hint in nav
             const modelLabel = data.model || 'onbekend';
             ragModelHint.textContent = `${currentProvider}: ${modelLabel}`;
@@ -2234,6 +2691,9 @@
         if (aiKey) payload.ai_api_key = aiKey;
         const elKey = document.getElementById('setupElKey').value.trim();
         if (elKey) payload.elevenlabs_api_key = elKey;
+        if (currentProvider === 'ollama') {
+            payload.ollama_base_url = document.getElementById('setupOllamaUrl').value.trim() || 'http://localhost:11434';
+        }
 
         try {
             const res = await fetch(`${API}/api/settings`, {
@@ -2264,10 +2724,85 @@
         btn.textContent = 'Opslaan';
     });
 
+    // ── Info tab ──────────────────────────────────────
+    async function loadInfo() {
+        try {
+            const res = await fetch(`${API}/api/info`);
+            if (!res.ok) return;
+            const info = await res.json();
+
+            // Version
+            const ver = `v${info.app.version}`;
+            document.getElementById('infoVersion').textContent = ver;
+            document.getElementById('infoVersionTag').textContent = ver;
+            document.getElementById('infoEdition').textContent = info.app.version_name;
+            document.getElementById('footerVersion').textContent = `${ver} — ${info.app.version_name}`;
+
+            // Active config
+            const prov = info.ai_provider.active_provider;
+            const provNames = { anthropic: 'Anthropic', openai: 'OpenAI', ollama: 'Ollama (Lokaal)' };
+            document.getElementById('infoActiveProvider').innerHTML =
+                `<span class="info-badge ${prov === 'anthropic' ? 'purple' : prov === 'openai' ? 'green' : 'blue'}">${provNames[prov] || prov}</span>`;
+            document.getElementById('infoActiveModel').textContent = info.ai_provider.active_model;
+            document.getElementById('infoAiKeyStatus').innerHTML = info.ai_provider.ai_key_configured
+                ? '<span class="info-badge green">Geconfigureerd</span>'
+                : (prov === 'ollama' ? '<span class="info-badge blue">Niet nodig</span>' : '<span class="info-badge red">Niet ingesteld</span>');
+            document.getElementById('infoElKeyStatus').innerHTML = info.ai_provider.elevenlabs_key_configured
+                ? '<span class="info-badge green">Geconfigureerd</span>'
+                : '<span class="info-badge yellow">Niet ingesteld</span>';
+
+            // Highlight active provider card
+            document.querySelectorAll('.info-provider-card').forEach(c => c.classList.remove('active'));
+            const provMap = { anthropic: 'infoProvAnthro', openai: 'infoProvOpenAI', ollama: 'infoProvOllama' };
+            const activeCard = document.getElementById(provMap[prov]);
+            if (activeCard) activeCard.classList.add('active');
+
+            // RAG
+            const rag = info.features.multimodal_rag;
+            document.getElementById('infoEmbedding').textContent = rag.embedding_model.split('/').pop();
+            document.getElementById('infoChunkSize').textContent = `${rag.chunk_size} tokens (${rag.chunk_overlap} overlap)`;
+            document.getElementById('infoImageExtract').innerHTML = rag.image_extraction
+                ? '<span class="info-badge green">Ingeschakeld</span>'
+                : '<span class="info-badge gray">Uitgeschakeld</span>';
+            document.getElementById('infoMaxImages').textContent = rag.max_images_per_query;
+
+            // TTS
+            const tts = info.features.elevenlabs_tts;
+            document.getElementById('infoTTSModel').textContent = tts.model;
+            document.getElementById('infoVoices').textContent = tts.voices.join(', ');
+            document.getElementById('infoEmotionCount').textContent = `${tts.emotions.length} emoties`;
+            const emotionTags = document.getElementById('infoEmotionTags');
+            emotionTags.innerHTML = tts.emotions.map(e => `<span class="info-tag">${e}</span>`).join('');
+
+            // TTS status
+            if (info.ai_provider.elevenlabs_key_configured) {
+                document.getElementById('infoTTSStatus').innerHTML = '<span class="info-badge green">Actief</span>';
+            }
+
+            // Stats
+            document.getElementById('infoDocCount').textContent = info.stats.documents_uploaded;
+            document.getElementById('infoIndexCount').textContent = info.stats.unique_documents_indexed;
+            document.getElementById('infoImgCount').textContent = info.stats.images_extracted;
+            document.getElementById('infoPython').textContent = info.system.python_version;
+        } catch (err) {
+            console.warn('Kon info niet laden:', err);
+        }
+    }
+
+    // Load info when Info tab is activated
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            if (tab.dataset.tab === 'info') loadInfo();
+        });
+    });
+
     // ── Init ───────────────────────────────────────
     loadDocuments();
     loadSettings();
     </script>
-    <footer class="copyright-footer">Copyright &copy; 2026 twinology.ai</footer>
+    <footer class="copyright-footer">
+        <span>Copyright &copy; 2026 twinology.ai</span>
+        <span class="footer-version" id="footerVersion">v2.1.1 — Multimodal RAG Edition</span>
+    </footer>
 </body>
 </html>

@@ -283,13 +283,25 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.get("/api/documents")
 async def get_documents():
-    """List all uploaded documents."""
-    docs = list_documents()
+    """List all uploaded documents (files on disk + index status)."""
+    allowed = {".pdf", ".docx", ".doc", ".txt", ".md", ".html", ".htm"}
+
+    # Get indexed documents from vector store (may be slow on first call)
+    try:
+        indexed_docs = set(list_documents())
+    except Exception:
+        indexed_docs = set()
+
+    # List all physical files in the documents directory
     file_info = []
-    for name in docs:
-        path = config.DOCUMENTS_DIR / name
-        size = path.stat().st_size if path.exists() else 0
-        file_info.append({"name": name, "size": size})
+    if config.DOCUMENTS_DIR.exists():
+        for f in sorted(config.DOCUMENTS_DIR.iterdir()):
+            if f.is_file() and f.suffix.lower() in allowed:
+                file_info.append({
+                    "name": f.name,
+                    "size": f.stat().st_size,
+                    "indexed": f.name in indexed_docs,
+                })
     return {"documents": file_info}
 
 
@@ -700,7 +712,7 @@ async def get_conversation_detail(conv_id: str):
     """Get full conversation detail."""
     data = _load_conversation_detail(conv_id)
     if not data:
-        raise HTTPException(404, "Gesprek niet gevonden.")
+        raise HTTPException(404, "Rapport niet gevonden.")
     return data
 
 
@@ -712,11 +724,11 @@ async def export_conversation(conv_id: str, format: str = Query("md")):
 
     data = _load_conversation_detail(conv_id)
     if not data:
-        raise HTTPException(404, "Gesprek niet gevonden.")
+        raise HTTPException(404, "Rapport niet gevonden.")
 
-    conv_type = data.get("type", "gesprek")
+    conv_type = data.get("type", "rapport")
     meta = data.get("metadata", {})
-    title = meta.get("scenario_name") or meta.get("topic") or "Gesprek"
+    title = meta.get("scenario_name") or meta.get("topic") or "Rapport"
     timestamp = data.get("timestamp", "")
     messages = data.get("messages", [])
     difficulty = meta.get("scenario_difficulty", "")
@@ -826,11 +838,11 @@ async def delete_conversation(conv_id: str):
                 data = json.load(f)
             if data.get("id") == conv_id:
                 os.remove(filepath)
-                logger.info(f"Gesprek verwijderd: {filepath.name}")
+                logger.info(f"Rapport verwijderd: {filepath.name}")
                 return {"status": "ok"}
         except Exception:
             continue
-    raise HTTPException(404, "Gesprek niet gevonden.")
+    raise HTTPException(404, "Rapport niet gevonden.")
 
 
 @app.post("/api/chat/save")
@@ -854,12 +866,14 @@ async def save_chat_history(req: ChatRequest):
 async def health_check():
     """Check if the AI provider is configured."""
     settings = load_settings()
-    configured = bool(settings.get("ai_api_key"))
+    provider = settings.get("provider", "anthropic")
+    configured = bool(settings.get("ai_api_key")) if provider != "ollama" else True
     return {
         "status": "ok" if configured else "no_key",
         "configured": configured,
-        "provider": settings.get("provider", "anthropic"),
+        "provider": provider,
         "model": settings.get("model", config.CLAUDE_MODEL),
+        "version": config.VERSION,
     }
 
 
@@ -868,6 +882,7 @@ class SettingsRequest(BaseModel):
     model: str
     ai_api_key: str = ""
     elevenlabs_api_key: str = ""
+    ollama_base_url: str = ""
 
 
 @app.get("/api/settings")
@@ -878,21 +893,24 @@ async def get_settings():
     el_key = s.get("elevenlabs_api_key", "")
     masked_ai = (ai_key[:4] + "..." + ai_key[-4:]) if len(ai_key) > 8 else ("***" if ai_key else "")
     masked_el = (el_key[:4] + "..." + el_key[-4:]) if len(el_key) > 8 else ("***" if el_key else "")
+    provider = s.get("provider", "anthropic")
+    configured = bool(ai_key) if provider != "ollama" else True
     return {
-        "provider": s.get("provider", "anthropic"),
+        "provider": provider,
         "model": s.get("model", config.CLAUDE_MODEL),
-        "configured": bool(ai_key),
+        "configured": configured,
         "ai_api_key_set": bool(ai_key),
         "ai_api_key_masked": masked_ai,
         "elevenlabs_api_key_set": bool(el_key),
         "elevenlabs_api_key_masked": masked_el,
+        "ollama_base_url": s.get("ollama_base_url", "http://localhost:11434"),
     }
 
 
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest):
     """Save provider, model, and API keys."""
-    valid_providers = {"anthropic", "openai"}
+    valid_providers = {"anthropic", "openai", "ollama"}
     if req.provider not in valid_providers:
         raise HTTPException(400, f"Ongeldige provider: {req.provider}")
     new_settings = {"provider": req.provider, "model": req.model}
@@ -900,9 +918,137 @@ async def update_settings(req: SettingsRequest):
         new_settings["ai_api_key"] = req.ai_api_key
     if req.elevenlabs_api_key:
         new_settings["elevenlabs_api_key"] = req.elevenlabs_api_key
+    if req.ollama_base_url:
+        new_settings["ollama_base_url"] = req.ollama_base_url
     save_settings(new_settings)
     logger.info(f"Instellingen bijgewerkt: provider={req.provider}, model={req.model}")
     return {"status": "ok"}
+
+
+@app.get("/api/info")
+async def get_app_info():
+    """Return comprehensive application information."""
+    import sys
+    settings = load_settings()
+    ai_key = settings.get("ai_api_key", "")
+    el_key = settings.get("elevenlabs_api_key", "")
+
+    # Count documents and chunks
+    docs = list_documents()
+    doc_files = [f for f in config.DOCUMENTS_DIR.iterdir() if f.is_file() and f.suffix.lower() in {
+        ".pdf", ".docx", ".doc", ".txt", ".md", ".html", ".htm"
+    }] if config.DOCUMENTS_DIR.exists() else []
+
+    # Count extracted images
+    image_count = 0
+    if config.IMAGES_DIR.exists():
+        for d in config.IMAGES_DIR.iterdir():
+            if d.is_dir():
+                image_count += len(list(d.glob("*.png"))) + len(list(d.glob("*.jpg")))
+
+    return {
+        "app": {
+            "name": "StudyPilot",
+            "version": config.VERSION,
+            "version_name": config.VERSION_NAME,
+            "tagline": "Minder zoeken, meer oefenen en sneller leren!",
+            "license": "MIT",
+            "author": "twinology.ai",
+            "repository": "https://github.com/twinology/studypilot",
+        },
+        "ai_provider": {
+            "active_provider": settings.get("provider", "anthropic"),
+            "active_model": settings.get("model", config.CLAUDE_MODEL),
+            "ai_key_configured": bool(ai_key),
+            "elevenlabs_key_configured": bool(el_key),
+            "providers": {
+                "anthropic": {
+                    "name": "Anthropic",
+                    "description": "Claude AI — state-of-the-art reasoning en analyse",
+                    "models": ["Claude Sonnet 4.6", "Claude Sonnet 4", "Claude Haiku 4", "Claude Opus 4"],
+                    "features": ["Multimodal (vision)", "200K context window", "Tool use", "Streaming"],
+                    "website": "https://console.anthropic.com",
+                },
+                "openai": {
+                    "name": "OpenAI",
+                    "description": "GPT-modellen — breed ecosysteem en integraties",
+                    "models": ["GPT-4o", "GPT-4o Mini", "GPT-4 Turbo", "GPT-3.5 Turbo"],
+                    "features": ["Multimodal (vision)", "128K context window", "Function calling", "Streaming"],
+                    "website": "https://platform.openai.com",
+                },
+                "ollama": {
+                    "name": "Ollama (Lokaal)",
+                    "description": "Draai AI-modellen lokaal — privacy-first, geen API-key nodig",
+                    "models": ["Llama 3.1", "Mistral", "Gemma 2", "Phi-3", "CodeLlama", "en meer..."],
+                    "features": ["100% lokaal", "Geen API-key nodig", "Privacy-first", "Gratis"],
+                    "website": "https://ollama.com",
+                },
+            },
+        },
+        "features": {
+            "multimodal_rag": {
+                "name": "Multimodal RAG",
+                "description": "Retrieval-Augmented Generation met tekst én afbeeldingen uit documenten",
+                "embedding_model": config.EMBEDDING_MODEL,
+                "vector_db": "ChromaDB",
+                "chunk_size": config.CHUNK_SIZE,
+                "chunk_overlap": config.CHUNK_OVERLAP,
+                "image_extraction": config.EXTRACT_IMAGES,
+                "max_images_per_query": config.MAX_IMAGES_IN_CONTEXT,
+            },
+            "elevenlabs_tts": {
+                "name": "ElevenLabs Text-to-Speech",
+                "description": "Natuurlijke stemmen met emotie-modulatie voor realistische gespreksvoering",
+                "model": config.ELEVENLABS_MODEL_ID,
+                "voices": list(config.ELEVENLABS_VOICES.keys()),
+                "emotions": list(config.ELEVENLABS_EMOTION_SETTINGS.keys()),
+                "website": "https://elevenlabs.io",
+            },
+            "practice_sessions": {
+                "name": "Oefensessies met AI-acteurs",
+                "description": "Oefen communicatievaardigheden met AI-personages die in rol blijven",
+            },
+            "conversation_export": {
+                "name": "Rapport exporteren",
+                "description": "Exporteer rapporten als Markdown, DOCX of PDF",
+                "formats": ["Markdown (.md)", "Word (.docx)", "PDF (.pdf)"],
+            },
+        },
+        "stats": {
+            "documents_uploaded": len(doc_files),
+            "unique_documents_indexed": len(docs),
+            "images_extracted": image_count,
+        },
+        "system": {
+            "python_version": sys.version.split()[0],
+            "framework": "FastAPI",
+            "frontend": "Vanilla JS (single-page)",
+        },
+    }
+
+
+@app.get("/api/ollama/models")
+async def get_ollama_models():
+    """Fetch available models from Ollama instance."""
+    import httpx
+    settings = load_settings()
+    base_url = settings.get("ollama_base_url", "http://localhost:11434")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{base_url}/api/tags")
+            resp.raise_for_status()
+            data = resp.json()
+            models = []
+            for m in data.get("models", []):
+                name = m.get("name", "")
+                size_gb = round(m.get("size", 0) / (1024**3), 1)
+                models.append({
+                    "value": name,
+                    "label": f"{name} ({size_gb}GB)" if size_gb else name,
+                })
+            return {"status": "ok", "models": models, "base_url": base_url}
+    except Exception as e:
+        return {"status": "error", "models": [], "error": str(e), "base_url": base_url}
 
 
 @app.get("/")

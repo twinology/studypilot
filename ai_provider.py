@@ -20,6 +20,7 @@ _DEFAULTS = {
     "model": "claude-sonnet-4-6",
     "ai_api_key": "",
     "elevenlabs_api_key": "",
+    "ollama_base_url": "http://localhost:11434",
 }
 
 
@@ -52,8 +53,11 @@ def save_settings(new_settings: dict) -> None:
 
 
 def is_configured() -> bool:
-    """Return True if an AI API key is present."""
-    return bool(load_settings().get("ai_api_key", "").strip())
+    """Return True if an AI API key is present (or Ollama is selected)."""
+    settings = load_settings()
+    if settings.get("provider") == "ollama":
+        return True  # Ollama needs no API key
+    return bool(settings.get("ai_api_key", "").strip())
 
 
 def get_active_model() -> str:
@@ -82,12 +86,27 @@ def create_chat_completion(
     model = settings.get("model", _DEFAULTS["model"])
     api_key = settings.get("ai_api_key", "")
 
-    if not api_key:
+    if provider != "ollama" and not api_key:
         raise RuntimeError(
             "Geen AI API-key geconfigureerd. Ga naar de Setup tab om een key in te stellen."
         )
 
-    if provider == "openai":
+    if provider == "ollama":
+        import openai as _openai
+        base_url = settings.get("ollama_base_url", "http://localhost:11434")
+        client = _openai.OpenAI(api_key="ollama", base_url=f"{base_url}/v1")
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        # Strip image blocks for Ollama (most local models don't support vision)
+        full_messages.extend(_strip_image_blocks(messages))
+        response = client.chat.completions.create(
+            model=model,
+            messages=full_messages,
+        )
+        return response.choices[0].message.content
+
+    elif provider == "openai":
         import openai
         client = openai.OpenAI(api_key=api_key)
         full_messages = []
@@ -115,6 +134,29 @@ def create_chat_completion(
 
 
 # ── Multimodal helpers ────────────────────────────────────────────────
+
+
+def _strip_image_blocks(messages: list) -> list:
+    """Remove image content blocks from messages (for providers that don't support vision).
+
+    Converts multimodal content lists to plain text strings.
+    """
+    result = []
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            result.append(msg)
+        elif isinstance(content, list):
+            text_parts = []
+            for block in content:
+                if block.get("type") == "text":
+                    text_parts.append(block["text"])
+                elif block.get("type") in ("image", "image_url"):
+                    text_parts.append("[afbeelding]")
+            result.append({**msg, "content": "\n".join(text_parts) if text_parts else ""})
+        else:
+            result.append(msg)
+    return result
 
 
 def _normalize_messages_for_anthropic(messages: list) -> list:
@@ -209,12 +251,33 @@ def create_vision_completion(
     model = settings.get("model", _DEFAULTS["model"])
     api_key = settings.get("ai_api_key", "")
 
-    if not api_key:
+    if provider != "ollama" and not api_key:
         raise RuntimeError("Geen AI API-key geconfigureerd.")
 
     b64_data = base64.b64encode(image_bytes).decode("utf-8")
 
-    if provider == "openai":
+    if provider == "ollama":
+        # Ollama vision via compatible models (llava, etc.)
+        import openai as _openai
+        base_url = settings.get("ollama_base_url", "http://localhost:11434")
+        client = _openai.OpenAI(api_key="ollama", base_url=f"{base_url}/v1")
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_data}"}},
+                        {"type": "text", "text": prompt},
+                    ],
+                }],
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"Ollama vision mislukt ({model}): {e}. Afbeelding overgeslagen.")
+            return f"[Afbeelding kon niet worden beschreven door lokaal model {model}]"
+
+    elif provider == "openai":
         import openai
         client = openai.OpenAI(api_key=api_key)
         # OpenAI vision uses gpt-4o models; fall back if model doesn't support vision
