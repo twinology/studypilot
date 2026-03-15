@@ -4276,8 +4276,8 @@
 
             currentProvider = data.provider || 'anthropic';
 
-            // Update provider radios
-            document.querySelectorAll('.provider-radio').forEach(r => {
+            // Update provider radios (only AI providers, not STT radios)
+            document.querySelectorAll('.provider-radio[data-provider]').forEach(r => {
                 r.classList.toggle('selected', r.dataset.provider === currentProvider);
             });
 
@@ -4385,10 +4385,10 @@
         }
     }
 
-    // Provider radio click
-    document.querySelectorAll('.provider-radio').forEach(radio => {
+    // Provider radio click (only AI provider radios, not STT radios)
+    document.querySelectorAll('.provider-radio[data-provider]').forEach(radio => {
         radio.addEventListener('click', () => {
-            document.querySelectorAll('.provider-radio').forEach(r => r.classList.remove('selected'));
+            document.querySelectorAll('.provider-radio[data-provider]').forEach(r => r.classList.remove('selected'));
             radio.classList.add('selected');
             currentProvider = radio.dataset.provider;
             updateModelOptions(currentProvider);
