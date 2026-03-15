@@ -4812,14 +4812,6 @@
                     var selected = m.value === modelsData.current_model ? ' selected' : '';
                     return '<option value="' + m.value + '"' + selected + '>' + m.label + '</option>';
                 }).join('');
-                var loadStatus = '';
-                if (status.model_loading) {
-                    loadStatus = '<div style="margin-top:6px;color:var(--warning)">⏳ Model wordt geladen...</div>';
-                } else if (status.model_loaded) {
-                    loadStatus = '<div style="margin-top:6px;color:var(--success)">✅ Model <strong>' + status.loaded_model_name + '</strong> geladen en klaar</div>';
-                } else {
-                    loadStatus = '<div style="margin-top:6px;color:var(--muted)">ℹ️ Model wordt geladen bij opstart of eerste gebruik</div>';
-                }
                 el.innerHTML =
                     '<span style="color:var(--success)">✅ faster-whisper geïnstalleerd</span>' +
                     '<div style="margin-top:6px">' + deviceLabel + '</div>' +
@@ -4830,7 +4822,8 @@
                         '</select>' +
                         '<div class="field-hint">' + (modelsData.cuda_available ? 'GPU: alle modellen draaien snel. Large V3 geeft beste kwaliteit.' : 'CPU: kies Small of Base voor acceptabele snelheid.') + '</div>' +
                     '</div>' +
-                    loadStatus;
+                    '<div id="whisperLoadStatus" style="margin-top:6px"></div>';
+                _updateWhisperLoadStatus();
                 // Track model selection
                 var sel = document.getElementById('whisperModelSelect');
                 if (sel) {
@@ -4852,6 +4845,30 @@
     }
 
     // Unified model search filter
+    // Poll whisper model load status until loaded
+    var _whisperPollTimer = null;
+    function _updateWhisperLoadStatus() {
+        var el = document.getElementById('whisperLoadStatus');
+        if (!el) { if (_whisperPollTimer) { clearInterval(_whisperPollTimer); _whisperPollTimer = null; } return; }
+        fetch(API + '/api/stt/status').then(r => r.json()).then(function(s) {
+            var el2 = document.getElementById('whisperLoadStatus');
+            if (!el2) { if (_whisperPollTimer) { clearInterval(_whisperPollTimer); _whisperPollTimer = null; } return; }
+            if (s.model_loading) {
+                el2.innerHTML = '<span style="color:var(--warning)">⏳ Model wordt geladen...</span>';
+            } else if (s.model_loaded) {
+                el2.innerHTML = '<span style="color:var(--success)">✅ Model <strong>' + s.loaded_model_name + '</strong> geladen en klaar</span>';
+                // Stop polling — model is loaded
+                if (_whisperPollTimer) { clearInterval(_whisperPollTimer); _whisperPollTimer = null; }
+            } else {
+                el2.innerHTML = '<span style="color:var(--muted)">ℹ️ Model wordt geladen bij opstart of eerste gebruik</span>';
+            }
+        }).catch(function() {});
+        // Start polling if not already
+        if (!_whisperPollTimer) {
+            _whisperPollTimer = setInterval(_updateWhisperLoadStatus, 2000);
+        }
+    }
+
     document.getElementById('modelSearchInput').addEventListener('input', () => {
         if (currentProvider === 'ollama' && (PROVIDER_MODELS.ollama || []).length === 0) return;
         if (currentProvider === 'openrouter' && (PROVIDER_MODELS.openrouter || []).length === 0) return;
