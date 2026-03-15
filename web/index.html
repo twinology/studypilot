@@ -1324,10 +1324,10 @@
                 <a onclick="switchToSetup()">Ga naar Setup</a>
             </div>
             <div class="messages" id="chatMessages">
-                <div class="message bot">Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!</div>
+                <div class="message bot">Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Of geef een onderwerp in, ik help je graag!</div>
             </div>
             <div class="input-bar">
-                <textarea id="chatInput" placeholder="Stel een vraag of geef een antwoord ... [ Shift+Enter voor nieuwe regel, Enter om te versturen ]" rows="1" autocomplete="off"></textarea>
+                <textarea id="chatInput" placeholder="Stel een vraag of geef een antwoord of een onderwerp in ... [ Shift+Enter voor nieuwe regel, Enter om te versturen ]" rows="1" autocomplete="off"></textarea>
                 <button class="btn btn-primary" id="chatSend">Verstuur</button>
                 <button class="btn btn-warning btn-sm" id="chatCloseBtn" title="Chat opslaan en afsluiten">Afsluiten</button>
             </div>
@@ -2618,7 +2618,7 @@
             if (!res.ok) throw new Error(data.detail || 'Opslaan mislukt');
             showStatus(`Chat opgeslagen (${data.message_count} berichten)`, 'success');
             // Clear chat UI
-            chatMessages.innerHTML = '<div class="message bot">Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!</div>';
+            chatMessages.innerHTML = '<div class="message bot">Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Of geef een onderwerp in, ik help je graag!</div>';
         } catch (err) {
             showStatus(`${err.message}`, 'error');
         }
@@ -3914,8 +3914,8 @@
             // Personalize welcome message
             const userName = data.user_name || '';
             const welcomeGreeting = userName
-                ? `Hallo ${userName}, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!`
-                : 'Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Ik help je graag!';
+                ? `Hallo ${userName}, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Of geef een onderwerp in, ik help je graag!`
+                : 'Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model. Of geef een onderwerp in, ik help je graag!';
             const firstMsg = chatMessages.querySelector('.message.bot:first-child');
             if (firstMsg && chatMessages.children.length === 1) {
                 firstMsg.textContent = welcomeGreeting;
