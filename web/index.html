@@ -904,26 +904,25 @@
         }
         /* Global audio stop button */
         #audioStopBtn {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            z-index: 9999;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            border: none;
-            background: var(--danger);
-            color: #fff;
-            font-size: 22px;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(220,38,38,0.4);
             display: none;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
+            gap: 4px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: none;
+            background: var(--danger);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s, transform 0.1s;
+            flex-shrink: 0;
         }
-        #audioStopBtn:hover { transform: scale(1.1); }
-        #audioStopBtn.visible { display: flex; }
+        #audioStopBtn:hover { background: #b91c1c; transform: scale(1.03); }
+        #audioStopBtn:active { transform: scale(0.97); }
+        #audioStopBtn.visible { display: inline-flex; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .btn-loading {
             position: relative;
@@ -1506,6 +1505,7 @@
                 <button class="mic-btn inactive" id="chatMicBtn" title="Spraakherkenning">&#127908;</button>
                 <textarea id="chatInput" placeholder="Stel een vraag, formuleer een antwoord of geef een onderwerp in ..." rows="1" autocomplete="off"></textarea>
                 <button class="btn btn-primary" id="chatSend">Verstuur</button>
+                <button id="audioStopBtn" title="Stop audio (Escape)">⏹ Stop</button>
                 <button class="btn btn-warning btn-sm" id="chatCloseBtn" title="Chat opslaan en afsluiten">Afsluiten</button>
             </div>
             <div id="chatVoiceStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:2px;display:none"></div>
@@ -2098,8 +2098,6 @@
             </div>
         </div>
     </div>
-
-    <button id="audioStopBtn" title="Stop audio">⏹</button>
 
     <script>
     const API = '';
