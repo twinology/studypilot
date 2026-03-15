@@ -2181,7 +2181,7 @@
                     <div class="doc-actions">
                         <button class="view-btn" onclick="viewDoc('${d.name}')" title="Bekijk inhoud">👁</button>
                         <button class="view-btn" onclick="reindexDoc('${d.name}')" title="Opnieuw indexeren" style="color:#2563eb">🔄</button>
-                        <button class="delete-btn" onclick="deleteDoc('${d.name}', '${d.display_name || d.name}')" title="Verwijderen">&times;</button>
+                        <button class="delete-btn" onclick="deleteDoc('${d.name}', '${d.display_name || d.name}')" title="Verwijderen">❌</button>
                     </div>
                 </li>`;
             }).join('');
@@ -3428,7 +3428,7 @@
                                 <button onclick="event.stopPropagation();exportConversation('${c.id}','docx')">Word (.docx)</button>
                                 <button onclick="event.stopPropagation();exportConversation('${c.id}','md')">Markdown (.md)</button>
                             </div>
-                            <button class="delete-btn" onclick="event.stopPropagation();deleteConversation('${c.id}')" title="Verwijderen">&times;</button>
+                            <button class="delete-btn" onclick="event.stopPropagation();deleteConversation('${c.id}')" title="Verwijderen">❌</button>
                         </div>
                     </li>`;
             }).join('');
