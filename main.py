@@ -1386,7 +1386,7 @@ async def export_conversation(conv_id: str, format: str = Query("md")):
     title = meta.get("scenario_name") or meta.get("topic") or "Rapport"
     timestamp = data.get("timestamp", "")
     messages = data.get("messages", [])
-    difficulty = meta.get("scenario_difficulty", "")
+    difficulty = meta.get("scenario_difficulty", "") or meta.get("quiz_difficulty", "")
     feedback = meta.get("feedback", "")
 
     safe_title = re.sub(r'[^\w\-_ ]', '_', title)[:60].strip()
@@ -1396,7 +1396,7 @@ async def export_conversation(conv_id: str, format: str = Query("md")):
         lines = [f"# {title}", ""]
         if timestamp:
             lines += [f"**Datum:** {timestamp}", ""]
-        if conv_type == "session" and difficulty:
+        if conv_type in ("session", "quiz") and difficulty:
             lines += [f"**Niveau:** {difficulty}", ""]
         lines += ["---", ""]
         for msg in messages:
@@ -1419,7 +1419,7 @@ async def export_conversation(conv_id: str, format: str = Query("md")):
         doc.add_heading(title, level=1)
         if timestamp:
             doc.add_paragraph(f"Datum: {timestamp}")
-        if conv_type == "session" and difficulty:
+        if conv_type in ("session", "quiz") and difficulty:
             doc.add_paragraph(f"Niveau: {difficulty}")
         doc.add_paragraph("")
         for msg in messages:
@@ -1455,7 +1455,7 @@ async def export_conversation(conv_id: str, format: str = Query("md")):
         pdf.set_font("Helvetica", "", 10)
         if timestamp:
             pdf.cell(0, 6, f"Datum: {timestamp}", ln=True)
-        if conv_type == "session" and difficulty:
+        if conv_type in ("session", "quiz") and difficulty:
             pdf.cell(0, 6, f"Niveau: {difficulty}", ln=True)
         pdf.ln(4)
 
@@ -1512,6 +1512,368 @@ async def save_chat_history(req: ChatRequest):
     # Clear the chat history after saving
     chat_histories[req.user_id] = []
     return {"status": "ok", "id": conv_id, "message_count": len(history)}
+
+
+# ── Quiz endpoints ───────────────────────────────────────────────────
+
+
+class QuizGenerateRequest(BaseModel):
+    subject: str
+    quiz_type: str  # "mc3", "mc4", "open"
+    num_questions: int = 5
+    difficulty: str = "gemiddeld"  # "basis", "gemiddeld", "gevorderd"
+
+
+class QuizEvaluateRequest(BaseModel):
+    questions: list
+    answers: list
+    quiz_type: str
+    subject: str = ""
+
+
+@app.post("/api/quiz/generate")
+async def generate_quiz(req: QuizGenerateRequest):
+    """Generate quiz questions using AI."""
+    if not is_configured():
+        raise HTTPException(503, "Geen AI API-key geconfigureerd. Ga naar Setup.")
+
+    if req.num_questions < 1 or req.num_questions > 20:
+        raise HTTPException(400, "Aantal vragen moet tussen 1 en 20 liggen.")
+
+    quiz_type_label = {
+        "mc3": "meerkeuzevragen met 3 antwoordmogelijkheden (A, B, C)",
+        "mc4": "meerkeuzevragen met 4 antwoordmogelijkheden (A, B, C, D)",
+        "open": "open vragen",
+    }.get(req.quiz_type, "meerkeuzevragen met 4 antwoordmogelijkheden (A, B, C, D)")
+
+    # Build RAG context if enabled
+    rag_context = ""
+    if rag_enabled:
+        try:
+            from rag.vector_store import search as rag_search
+            context_items = rag_search(req.subject, n_results=10)
+            if context_items:
+                rag_context = "\n\n---\n\n".join(
+                    f"[Bron: {item['source']}]\n{item['text']}" for item in context_items
+                )
+        except Exception as e:
+            logger.warning(f"RAG context voor toets mislukt: {e}")
+
+    if req.quiz_type in ("mc3", "mc4"):
+        num_options = 3 if req.quiz_type == "mc3" else 4
+        option_letters = "A, B, C" if num_options == 3 else "A, B, C, D"
+        json_example = '{"questions": [{"question": "Vraag tekst hier?", "options": {"A": "optie A", "B": "optie B", "C": "optie C"}, "correct": "A"}]}'
+        if num_options == 4:
+            json_example = '{"questions": [{"question": "Vraag tekst hier?", "options": {"A": "optie A", "B": "optie B", "C": "optie C", "D": "optie D"}, "correct": "A"}]}'
+        format_instruction = f"""Elke vraag heeft:
+- "question": de vraagtekst
+- "options": een object met {option_letters} als keys en de antwoordteksten als values
+- "correct": de letter van het juiste antwoord ({option_letters})"""
+    else:
+        json_example = '{"questions": [{"question": "Vraag tekst hier?", "answer": "Het verwachte antwoord hier"}]}'
+        format_instruction = """Elke vraag heeft:
+- "question": de vraagtekst
+- "answer": het verwachte modelantwoord (uitgebreid genoeg om te beoordelen)"""
+
+    difficulty_instruction = {
+        "basis": "Stel eenvoudige vragen die basisbegrippen en feitenkennis toetsen. Geschikt voor beginners.",
+        "gemiddeld": "Stel vragen van gemiddeld niveau die zowel kennis als begrip en toepassing toetsen.",
+        "gevorderd": "Stel uitdagende vragen die diepgaand begrip, analyse en kritisch denken vereisen. Geschikt voor gevorderde studenten.",
+    }.get(req.difficulty, "Stel vragen van gemiddeld niveau die zowel kennis als begrip en toepassing toetsen.")
+
+    system = f"""Je bent een toetsgenerator voor studenten. Genereer precies {req.num_questions} {quiz_type_label} over het onderwerp: "{req.subject}".
+
+Moeilijkheidsgraad: {req.difficulty}.
+{difficulty_instruction}
+
+Antwoord UITSLUITEND met valid JSON in dit exacte formaat:
+{json_example}
+
+{format_instruction}
+
+Regels:
+- Genereer precies {req.num_questions} vragen.
+- Stel duidelijke, relevante vragen die begrip toetsen.
+- Alle vragen moeten op het niveau '{req.difficulty}' zijn.
+- Bij meerkeuzevragen: maak de afleiders plausibel maar duidelijk onjuist.
+- Antwoord ALLEEN met de JSON. Geen extra tekst, uitleg of markdown."""
+
+    if rag_context:
+        system += f"\n\nGebruik de volgende context uit de kennisbank als basis voor de vragen:\n\n{rag_context}"
+
+    logger.info(f"Toets genereren: onderwerp='{req.subject}', type={req.quiz_type}, vragen={req.num_questions}, rag={rag_enabled}")
+
+    try:
+        result = create_chat_completion(
+            messages=[{"role": "user", "content": f"Genereer een toets met {req.num_questions} {quiz_type_label} over: {req.subject}"}],
+            system=system,
+            return_usage=True,
+        )
+        raw_text = result["text"].strip()
+        usage = result["usage"]
+
+        # Try to extract JSON from the response
+        # Sometimes the AI wraps it in markdown code blocks
+        if raw_text.startswith("```"):
+            # Remove markdown code block
+            lines = raw_text.split("\n")
+            json_lines = []
+            in_block = False
+            for line in lines:
+                if line.strip().startswith("```") and not in_block:
+                    in_block = True
+                    continue
+                elif line.strip().startswith("```") and in_block:
+                    break
+                elif in_block:
+                    json_lines.append(line)
+            raw_text = "\n".join(json_lines)
+
+        quiz_data = json.loads(raw_text)
+        questions = quiz_data.get("questions", [])
+
+        logger.info(f"Toets gegenereerd: {len(questions)} vragen | tokens in={usage.get('input_tokens', '?')} out={usage.get('output_tokens', '?')}")
+
+        return {
+            "questions": questions,
+            "quiz_type": req.quiz_type,
+            "subject": req.subject,
+            "usage": usage,
+        }
+    except json.JSONDecodeError as e:
+        logger.error(f"Toets JSON parse fout: {e}\nRuwe tekst: {raw_text[:500]}")
+        raise HTTPException(500, f"Kon de toetsvragen niet verwerken. Probeer opnieuw.")
+    except RuntimeError as e:
+        logger.error(f"Toets generatie fout: {e}")
+        raise HTTPException(503, str(e))
+    except Exception as e:
+        logger.error(f"Onverwachte fout bij toets generatie: {e}")
+        raise HTTPException(500, f"Er ging iets mis bij het genereren van de toets.")
+
+
+@app.post("/api/quiz/evaluate")
+async def evaluate_quiz(req: QuizEvaluateRequest):
+    """Evaluate quiz answers using AI."""
+    if not is_configured():
+        raise HTTPException(503, "Geen AI API-key geconfigureerd. Ga naar Setup.")
+
+    if not req.questions or not req.answers:
+        raise HTTPException(400, "Vragen en antwoorden zijn vereist.")
+
+    if req.quiz_type in ("mc3", "mc4"):
+        # For MC questions, we can evaluate directly without AI
+        results = []
+        correct_count = 0
+        for i, q in enumerate(req.questions):
+            user_answer = req.answers[i] if i < len(req.answers) else ""
+            is_correct = user_answer.upper() == q.get("correct", "").upper()
+            if is_correct:
+                correct_count += 1
+            correct_letter = q.get("correct", "?")
+            correct_text = q.get("options", {}).get(correct_letter, correct_letter)
+            user_text = q.get("options", {}).get(user_answer.upper(), user_answer) if user_answer else "(niet beantwoord)"
+            results.append({
+                "question": q.get("question", ""),
+                "user_answer": user_text,
+                "user_answer_letter": user_answer.upper() if user_answer else "",
+                "correct_answer": f"{correct_letter}: {correct_text}",
+                "correct_letter": correct_letter,
+                "is_correct": is_correct,
+                "feedback": "Goed zo!" if is_correct else f"Het juiste antwoord is {correct_letter}: {correct_text}.",
+            })
+
+        # Get AI feedback on overall performance
+        score_pct = round(correct_count / len(req.questions) * 100) if req.questions else 0
+        try:
+            wrong_questions = [r for r in results if not r["is_correct"]]
+            feedback_prompt = f"De student maakte een meerkeuzetoets over '{req.subject}' en scoorde {correct_count}/{len(req.questions)} ({score_pct}%)."
+            if wrong_questions:
+                feedback_prompt += "\n\nFout beantwoorde vragen:\n"
+                for r in wrong_questions:
+                    feedback_prompt += f"- Vraag: {r['question']}\n  Antwoord student: {r['user_answer']}\n  Juiste antwoord: {r['correct_answer']}\n"
+            feedback_prompt += "\nGeef per fout beantwoorde vraag een korte uitleg waarom het antwoord fout is en waarom het juiste antwoord correct is. Wees bemoedigend."
+
+            fb_result = create_chat_completion(
+                messages=[{"role": "user", "content": feedback_prompt}],
+                system="Je bent een behulpzame tutor die feedback geeft op toetsresultaten. Communiceer in het Nederlands. Wees bemoedigend en constructief.",
+                return_usage=True,
+            )
+            overall_feedback = fb_result["text"]
+            usage = fb_result["usage"]
+        except Exception as e:
+            logger.warning(f"Toets feedback generatie mislukt: {e}")
+            overall_feedback = ""
+            usage = {"input_tokens": 0, "output_tokens": 0}
+
+        return {
+            "results": results,
+            "score": correct_count,
+            "total": len(req.questions),
+            "percentage": score_pct,
+            "overall_feedback": overall_feedback,
+            "usage": usage,
+        }
+    else:
+        # Open questions: use AI to evaluate
+        eval_items = []
+        for i, q in enumerate(req.questions):
+            user_answer = req.answers[i] if i < len(req.answers) else "(niet beantwoord)"
+            eval_items.append({
+                "nr": i + 1,
+                "question": q.get("question", ""),
+                "model_answer": q.get("answer", ""),
+                "user_answer": user_answer,
+            })
+
+        eval_json = json.dumps(eval_items, ensure_ascii=False)
+
+        system = """Je bent een toetsbeoordelaar. Beoordeel de antwoorden van de student.
+
+Antwoord UITSLUITEND met valid JSON in dit exacte formaat:
+{"results": [{"nr": 1, "is_correct": true, "score": 1.0, "feedback": "uitleg"}], "overall_feedback": "samenvatting"}
+
+Per vraag:
+- "nr": het vraagnummer
+- "is_correct": true als het antwoord (grotendeels) correct is, false als het fout is
+- "score": 0.0 tot 1.0 (hoe goed het antwoord is)
+- "feedback": korte feedback op het antwoord van de student
+
+"overall_feedback": een samenvattend commentaar met tips.
+
+Regels:
+- Beoordeel op inhoud, niet op formulering.
+- Een antwoord hoeft niet woordelijk overeen te komen met het modelantwoord.
+- Wees eerlijk maar bemoedigend.
+- Antwoord ALLEEN met JSON, geen extra tekst."""
+
+        try:
+            result = create_chat_completion(
+                messages=[{"role": "user", "content": f"Beoordeel deze toetsantwoorden:\n\n{eval_json}"}],
+                system=system,
+                return_usage=True,
+            )
+            raw_text = result["text"].strip()
+            usage = result["usage"]
+
+            if raw_text.startswith("```"):
+                lines = raw_text.split("\n")
+                json_lines = []
+                in_block = False
+                for line in lines:
+                    if line.strip().startswith("```") and not in_block:
+                        in_block = True
+                        continue
+                    elif line.strip().startswith("```") and in_block:
+                        break
+                    elif in_block:
+                        json_lines.append(line)
+                raw_text = "\n".join(json_lines)
+
+            eval_data = json.loads(raw_text)
+            ai_results = eval_data.get("results", [])
+            overall_feedback = eval_data.get("overall_feedback", "")
+
+            # Build final results
+            results = []
+            correct_count = 0
+            for i, q in enumerate(req.questions):
+                ai_r = ai_results[i] if i < len(ai_results) else {}
+                is_correct = ai_r.get("is_correct", False)
+                if is_correct:
+                    correct_count += 1
+                user_answer = req.answers[i] if i < len(req.answers) else "(niet beantwoord)"
+                results.append({
+                    "question": q.get("question", ""),
+                    "user_answer": user_answer,
+                    "correct_answer": q.get("answer", ""),
+                    "is_correct": is_correct,
+                    "score": ai_r.get("score", 1.0 if is_correct else 0.0),
+                    "feedback": ai_r.get("feedback", ""),
+                })
+
+            total = len(req.questions)
+            score_pct = round(correct_count / total * 100) if total else 0
+
+            return {
+                "results": results,
+                "score": correct_count,
+                "total": total,
+                "percentage": score_pct,
+                "overall_feedback": overall_feedback,
+                "usage": usage,
+            }
+        except json.JSONDecodeError as e:
+            logger.error(f"Toets evaluatie JSON parse fout: {e}\nRuwe tekst: {raw_text[:500]}")
+            raise HTTPException(500, "Kon de beoordeling niet verwerken. Probeer opnieuw.")
+        except RuntimeError as e:
+            logger.error(f"Toets evaluatie fout: {e}")
+            raise HTTPException(503, str(e))
+        except Exception as e:
+            logger.error(f"Onverwachte fout bij toets evaluatie: {e}")
+            raise HTTPException(500, "Er ging iets mis bij het beoordelen van de toets.")
+
+
+@app.post("/api/quiz/save")
+async def save_quiz_result(request: Request):
+    """Save a quiz result as a conversation/rapport."""
+    data = await request.json()
+    subject = data.get("subject", "Toets")
+    quiz_type = data.get("quiz_type", "mc4")
+    difficulty = data.get("difficulty", "gemiddeld")
+    score = data.get("score", 0)
+    total = data.get("total", 0)
+    percentage = data.get("percentage", 0)
+    results = data.get("results", [])
+    overall_feedback = data.get("overall_feedback", "")
+
+    type_labels = {"mc3": "MC (3 opties)", "mc4": "MC (4 opties)", "open": "Open vragen"}
+    type_label = type_labels.get(quiz_type, quiz_type)
+    diff_labels = {"basis": "Basis", "gemiddeld": "Gemiddeld", "gevorderd": "Gevorderd"}
+    diff_label = diff_labels.get(difficulty, difficulty)
+
+    # Build messages array for the conversation
+    messages = []
+    messages.append({
+        "role": "assistant",
+        "content": f"**Toets: {subject}**\nType: {type_label} — Niveau: {diff_label}\nAantal vragen: {total}\n\n---",
+    })
+
+    for i, r in enumerate(results):
+        # Question as tutor message
+        q_text = f"**Vraag {i+1}:** {r.get('question', '')}"
+        if "options" in r:
+            for letter, text in r["options"].items():
+                q_text += f"\n{letter}) {text}"
+        messages.append({"role": "assistant", "content": q_text})
+
+        # Student answer
+        messages.append({"role": "user", "content": r.get("user_answer", "(niet beantwoord)")})
+
+        # Feedback
+        icon = "✅" if r.get("is_correct") else "❌"
+        fb = f"{icon} "
+        if not r.get("is_correct"):
+            fb += f"Juiste antwoord: {r.get('correct_answer', '?')}\n"
+        fb += r.get("feedback", "")
+        messages.append({"role": "assistant", "content": fb})
+
+    # Overall result
+    messages.append({
+        "role": "assistant",
+        "content": f"**Resultaat: {score}/{total} correct ({percentage}%)**\n\n{overall_feedback}",
+    })
+
+    conv_id = _save_conversation("quiz", "web_user", messages, {
+        "topic": f"Toets: {subject}",
+        "quiz_subject": subject,
+        "quiz_type": quiz_type,
+        "quiz_difficulty": difficulty,
+        "score": score,
+        "total": total,
+        "percentage": percentage,
+    })
+
+    return {"status": "ok", "id": conv_id}
 
 
 # ── Web interface ────────────────────────────────────────────────────

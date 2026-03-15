@@ -1079,6 +1079,7 @@
         }
         .conv-type-chat { background: #dbeafe; color: #1e40af; }
         .conv-type-session { background: #dcfce7; color: #166534; }
+        .conv-type-quiz { background: #ede9fe; color: #5b21b6; }
         .conv-detail-view { display: none; flex-direction: column; flex: 1; min-height: 0; }
         .conv-detail-view.active { display: flex; }
         .conv-detail-header {
@@ -1100,6 +1101,92 @@
             text-align: center; padding: 48px 24px; color: var(--text-muted);
         }
         .conv-empty h3 { margin-bottom: 8px; font-size: 16px; }
+
+        /* ── Quiz panel ────────────────────── */
+        .quiz-panel { padding: 24px; overflow-y: auto; }
+        .quiz-setup-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px; max-width: 600px;
+        }
+        .quiz-setup-card h2 { font-size: 18px; margin-bottom: 16px; }
+        .quiz-field { margin-bottom: 18px; }
+        .quiz-field label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+        .quiz-field input[type="text"],
+        .quiz-field input[type="number"] {
+            width: 100%; padding: 10px 14px; border: 2px solid var(--border);
+            border-radius: 10px; font-size: 14px; background: var(--bg); color: var(--text);
+            transition: border-color 0.2s;
+        }
+        .quiz-field input:focus { outline: none; border-color: var(--primary); }
+        .quiz-field input[type="number"] { width: 100px; }
+        .quiz-type-options { display: flex; flex-direction: column; gap: 8px; }
+        .quiz-type-option {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; background: var(--bg); border: 2px solid var(--border);
+            border-radius: 10px; cursor: pointer; transition: all 0.2s;
+        }
+        .quiz-type-option:hover { border-color: var(--primary); }
+        .quiz-type-option.selected { border-color: var(--primary); background: #eff6ff; }
+        .quiz-type-option input[type="radio"] { margin: 0; }
+        .quiz-type-option .qt-label { font-weight: 500; font-size: 14px; }
+
+        .quiz-questions-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px; max-width: 800px;
+        }
+        .quiz-questions-card h2 { font-size: 18px; margin-bottom: 4px; }
+        .quiz-questions-card .quiz-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+        .quiz-question-block {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px; margin-bottom: 14px;
+        }
+        .quiz-question-block .qq-number {
+            font-weight: 700; font-size: 13px; color: var(--primary);
+            margin-bottom: 6px; text-transform: uppercase;
+        }
+        .quiz-question-block .qq-text { font-size: 15px; font-weight: 500; margin-bottom: 12px; line-height: 1.5; }
+        .quiz-mc-options { display: flex; flex-direction: column; gap: 6px; }
+        .quiz-mc-option {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 14px;
+        }
+        .quiz-mc-option:hover { border-color: var(--primary); background: #f8fafc; }
+        .quiz-mc-option.selected { border-color: var(--primary); background: #dbeafe; }
+        .quiz-mc-option input[type="radio"] { margin: 0; flex-shrink: 0; }
+        .quiz-open-textarea {
+            width: 100%; min-height: 80px; padding: 10px 14px; border: 2px solid var(--border);
+            border-radius: 10px; font-size: 14px; font-family: inherit; background: var(--surface);
+            color: var(--text); resize: vertical; transition: border-color 0.2s;
+        }
+        .quiz-open-textarea:focus { outline: none; border-color: var(--primary); }
+
+        .quiz-results-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px; max-width: 800px;
+        }
+        .quiz-results-card h2 { font-size: 18px; margin-bottom: 4px; }
+        .quiz-score-banner {
+            text-align: center; padding: 20px; margin-bottom: 20px;
+            border-radius: 12px; background: linear-gradient(135deg, #ede9fe, #dbeafe);
+        }
+        .quiz-score-big { font-size: 36px; font-weight: 800; color: var(--primary); }
+        .quiz-score-pct { font-size: 16px; color: var(--text-muted); margin-top: 4px; }
+        .quiz-result-item {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px; margin-bottom: 12px;
+        }
+        .quiz-result-item.correct { border-left: 4px solid var(--success); }
+        .quiz-result-item.incorrect { border-left: 4px solid var(--danger); }
+        .qr-question { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+        .qr-answer-row { font-size: 13px; margin-bottom: 4px; }
+        .qr-answer-row strong { color: var(--text); }
+        .qr-feedback { font-size: 13px; color: var(--text-muted); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); line-height: 1.5; }
+        .quiz-overall-feedback {
+            background: #f0fdf4; border: 1px solid #bbf7d0;
+            border-radius: 10px; padding: 16px; margin-top: 16px; line-height: 1.7; font-size: 14px;
+        }
+        .quiz-btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
 
         /* ── Logs panel ────────────────────── */
         .logs-panel { padding: 16px 24px; overflow-y: auto; }
@@ -1296,6 +1383,7 @@
         <div class="tab" data-tab="chat">Kennisvragen</div>
         <div class="tab" data-tab="practice">Gesprekssimulatie</div>
         <div class="tab" data-tab="conversations">Rapporten</div>
+        <div class="tab" data-tab="quiz">Toetsen</div>
         <div class="tab" data-tab="logs">Logs</div>
         <div class="tab" data-tab="setup">Setup</div>
         <div class="tab" data-tab="info">Info</div>
@@ -1474,13 +1562,14 @@
                         <option value="">Alle rapporten</option>
                         <option value="chat">Chats</option>
                         <option value="session">Gesprekssimulaties</option>
+                        <option value="quiz">Toetsen</option>
                     </select>
                     <button class="btn btn-sm btn-secondary" id="refreshConvs">Vernieuwen</button>
                 </div>
                 <ul class="conv-list" id="convList">
                     <li class="conv-empty">
                         <h3>Nog geen rapporten opgeslagen</h3>
-                        <p>Chats en gesprekssimulaties worden hier automatisch bewaard.</p>
+                        <p>Chats, gesprekssimulaties en toetsen worden hier automatisch bewaard.</p>
                     </li>
                 </ul>
             </div>
@@ -1492,6 +1581,81 @@
                 </div>
                 <div class="conv-detail-messages" id="convDetailMessages"></div>
                 <div id="convDetailFeedback" class="conv-detail-feedback hidden"></div>
+            </div>
+        </div>
+
+        <!-- ── Toetsen ─────────────────────────────────── -->
+        <div id="quizPanel" class="panel quiz-panel">
+            <div id="quizLockOverlay" class="lock-overlay">
+                <span class="lock-icon">🔒</span>
+                <span>Stel eerst een API-key in om toetsen te maken.</span>
+                <a onclick="switchToSetup()">Ga naar Setup</a>
+            </div>
+
+            <!-- Setup view -->
+            <div id="quizSetupView">
+                <div class="quiz-setup-card">
+                    <h2>Toets aanmaken</h2>
+                    <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
+                        Genereer een toets op basis van een onderwerp. Als de kennisbank actief is, worden vragen gebaseerd op je documenten.
+                    </p>
+
+                    <div class="quiz-field">
+                        <label for="quizSubject">Onderwerp</label>
+                        <input type="text" id="quizSubject" placeholder="Bijv. marketingstrategie, stakeholderanalyse, gesprekstechnieken...">
+                    </div>
+
+                    <div class="quiz-field">
+                        <label>Type toets</label>
+                        <div class="quiz-type-options" id="quizTypeOptions">
+                            <label class="quiz-type-option selected" data-type="mc4">
+                                <input type="radio" name="quizType" value="mc4" checked>
+                                <span class="qt-label">MC toets met 4 antwoordmogelijkheden</span>
+                            </label>
+                            <label class="quiz-type-option" data-type="mc3">
+                                <input type="radio" name="quizType" value="mc3">
+                                <span class="qt-label">MC toets met 3 antwoordmogelijkheden</span>
+                            </label>
+                            <label class="quiz-type-option" data-type="open">
+                                <input type="radio" name="quizType" value="open">
+                                <span class="qt-label">Toets met open vragen</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="quiz-field">
+                        <label>Moeilijkheidsgraad</label>
+                        <div class="quiz-type-options" id="quizDifficultyOptions">
+                            <label class="quiz-type-option" data-type="basis">
+                                <input type="radio" name="quizDifficulty" value="basis">
+                                <span class="qt-label">🟢 Basis</span>
+                            </label>
+                            <label class="quiz-type-option selected" data-type="gemiddeld">
+                                <input type="radio" name="quizDifficulty" value="gemiddeld" checked>
+                                <span class="qt-label">🟡 Gemiddeld</span>
+                            </label>
+                            <label class="quiz-type-option" data-type="gevorderd">
+                                <input type="radio" name="quizDifficulty" value="gevorderd">
+                                <span class="qt-label">🔴 Gevorderd</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="quiz-field">
+                        <label for="quizNumQuestions">Aantal vragen</label>
+                        <input type="number" id="quizNumQuestions" value="5" min="1" max="20">
+                    </div>
+
+                    <button class="btn btn-primary" id="quizStartBtn" style="margin-top:8px">Start toets</button>
+                </div>
+            </div>
+
+            <!-- Quiz execution view -->
+            <div id="quizExecutionView" style="display:none">
+            </div>
+
+            <!-- Results view -->
+            <div id="quizResultsView" style="display:none">
             </div>
         </div>
 
@@ -3449,20 +3613,27 @@
                 convList.innerHTML = `
                     <li class="conv-empty">
                         <h3>Nog geen rapporten opgeslagen</h3>
-                        <p>Chats en gesprekssimulaties worden hier automatisch bewaard.</p>
+                        <p>Chats, gesprekssimulaties en toetsen worden hier automatisch bewaard.</p>
                     </li>`;
                 return;
             }
             convList.innerHTML = data.conversations.map(c => {
                 const typeBadge = c.type === 'session'
                     ? '<span class="conv-type-badge conv-type-session">Gesprekssimulatie</span>'
+                    : c.type === 'quiz'
+                    ? '<span class="conv-type-badge conv-type-quiz">Toets</span>'
                     : '<span class="conv-type-badge conv-type-chat">Chat</span>';
                 const title = c.type === 'session'
                     ? (c.metadata.scenario_name || 'Gesprekssimulatie')
+                    : c.type === 'quiz'
+                    ? (c.metadata.topic || 'Toets')
                     : (c.metadata.topic || 'Chat rapport');
                 const dateStr = c.timestamp ? new Date(c.timestamp).toLocaleString('nl-NL') : '';
                 const difficulty = c.metadata.scenario_difficulty
                     ? ` &middot; ${c.metadata.scenario_difficulty}`
+                    : '';
+                const quizScore = c.type === 'quiz' && c.metadata.score !== undefined
+                    ? ` &middot; ${c.metadata.score}/${c.metadata.total} (${c.metadata.percentage}%)`
                     : '';
                 return `
                     <li class="conv-item" onclick="openConversation('${c.id}')">
@@ -3470,7 +3641,7 @@
                             <div class="conv-title">${typeBadge}${escapeHtml(title)}</div>
                             <div class="conv-meta">
                                 <span>${dateStr}</span>
-                                <span>${c.message_count} berichten${difficulty}</span>
+                                <span>${c.message_count} berichten${difficulty}${quizScore}</span>
                             </div>
                         </div>
                         <div class="conv-actions">
@@ -3497,6 +3668,8 @@
 
             const title = data.type === 'session'
                 ? (data.metadata.scenario_name || 'Gesprekssimulatie')
+                : data.type === 'quiz'
+                ? (data.metadata.topic || 'Toets')
                 : 'Chat rapport';
             document.getElementById('convDetailTitle').textContent = title;
 
@@ -3891,14 +4064,17 @@
         const banner = document.getElementById('lockdownBanner');
         const chatLock = document.getElementById('chatLockOverlay');
         const practiceLock = document.getElementById('practiceLockOverlay');
+        const quizLock = document.getElementById('quizLockOverlay');
         if (locked) {
             banner.classList.add('visible');
             chatLock.classList.add('visible');
             practiceLock.classList.add('visible');
+            quizLock.classList.add('visible');
         } else {
             banner.classList.remove('visible');
             chatLock.classList.remove('visible');
             practiceLock.classList.remove('visible');
+            quizLock.classList.remove('visible');
         }
     }
 
@@ -4192,6 +4368,302 @@
             if (tab.dataset.tab === 'info') loadInfo();
         });
     });
+
+    // ── Quiz (Toetsen) ─────────────────────────────
+
+    // Quiz type radio styling (per group)
+    document.querySelectorAll('#quizTypeOptions .quiz-type-option').forEach(opt => {
+        opt.querySelector('input[type="radio"]').addEventListener('change', () => {
+            document.querySelectorAll('#quizTypeOptions .quiz-type-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+        });
+    });
+    document.querySelectorAll('#quizDifficultyOptions .quiz-type-option').forEach(opt => {
+        opt.querySelector('input[type="radio"]').addEventListener('change', () => {
+            document.querySelectorAll('#quizDifficultyOptions .quiz-type-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+        });
+    });
+
+    // State
+    let _quizQuestions = [];
+    let _quizType = 'mc4';
+    let _quizDifficulty = 'gemiddeld';
+    let _quizSubject = '';
+
+    const quizSetupView = document.getElementById('quizSetupView');
+    const quizExecutionView = document.getElementById('quizExecutionView');
+    const quizResultsView = document.getElementById('quizResultsView');
+
+    function quizShowView(view) {
+        quizSetupView.style.display = view === 'setup' ? '' : 'none';
+        quizExecutionView.style.display = view === 'execution' ? '' : 'none';
+        quizResultsView.style.display = view === 'results' ? '' : 'none';
+    }
+
+    // Start quiz: generate questions
+    document.getElementById('quizStartBtn').addEventListener('click', async () => {
+        const subject = document.getElementById('quizSubject').value.trim();
+        if (!subject) {
+            showStatus('Vul een onderwerp in.', 'error');
+            return;
+        }
+        const quizType = document.querySelector('input[name="quizType"]:checked').value;
+        const difficulty = document.querySelector('input[name="quizDifficulty"]:checked').value;
+        const numQuestions = parseInt(document.getElementById('quizNumQuestions').value) || 5;
+
+        _quizSubject = subject;
+        _quizType = quizType;
+        _quizDifficulty = difficulty;
+
+        const btn = document.getElementById('quizStartBtn');
+        btn.disabled = true;
+        btn.textContent = 'Bezig met genereren...';
+
+        // Show thinking indicator in execution view
+        quizExecutionView.innerHTML = `
+            <div class="quiz-questions-card">
+                <div style="display:flex;align-items:center;gap:12px;padding:20px 0">
+                    <div class="thinking-dots"><span></span><span></span><span></span></div>
+                    <span class="thinking-text" id="quizThinkingText">Toets wordt gegenereerd...</span>
+                </div>
+            </div>`;
+        quizShowView('execution');
+
+        const thinkStart = Date.now();
+        const thinkEl = document.getElementById('quizThinkingText');
+        const thinkTimer = setInterval(() => {
+            const secs = Math.floor((Date.now() - thinkStart) / 1000);
+            if (secs < 5) thinkEl.textContent = 'Toets wordt gegenereerd...';
+            else if (secs < 15) thinkEl.textContent = `Vragen worden opgesteld... (${secs}s)`;
+            else thinkEl.textContent = `Nog even geduld... (${secs}s)`;
+        }, 1000);
+
+        try {
+            const res = await fetch(`${API}/api/quiz/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject, quiz_type: quizType, num_questions: numQuestions, difficulty: difficulty }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Fout bij genereren');
+
+            _quizQuestions = data.questions;
+
+            // Track token usage
+            if (data.usage) {
+                const inTok = data.usage.input_tokens || 0;
+                const outTok = data.usage.output_tokens || 0;
+                const totalTokens = inTok + outTok;
+                const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
+                if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+                window._tokenStats.input += inTok;
+                window._tokenStats.output += outTok;
+                window._tokenStats.total += totalTokens;
+                window._tokenStats.cost += costUsd;
+                window._tokenStats.calls += 1;
+                _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: 0, cost: costUsd, calls: 1 });
+            }
+
+            renderQuizQuestions();
+            showStatus(`Toets gegenereerd: ${_quizQuestions.length} vragen over "${subject}"`, 'success');
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+            quizShowView('setup');
+        }
+
+        clearInterval(thinkTimer);
+        btn.disabled = false;
+        btn.textContent = 'Start toets';
+    });
+
+    function renderQuizQuestions() {
+        const typeLabels = { mc3: 'MC (3 opties)', mc4: 'MC (4 opties)', open: 'Open vragen' };
+        const diffLabels = { basis: '🟢 Basis', gemiddeld: '🟡 Gemiddeld', gevorderd: '🔴 Gevorderd' };
+        let html = `<div class="quiz-questions-card">
+            <h2>Toets: ${escapeHtml(_quizSubject)}</h2>
+            <div class="quiz-subtitle">${typeLabels[_quizType] || _quizType} &mdash; ${diffLabels[_quizDifficulty] || _quizDifficulty} &mdash; ${_quizQuestions.length} vragen</div>`;
+
+        _quizQuestions.forEach((q, i) => {
+            html += `<div class="quiz-question-block">
+                <div class="qq-number">Vraag ${i + 1}</div>
+                <div class="qq-text">${escapeHtml(q.question)}</div>`;
+
+            if (_quizType === 'mc3' || _quizType === 'mc4') {
+                html += `<div class="quiz-mc-options" id="quiz_mc_group_${i}">`;
+                const options = q.options || {};
+                for (const [letter, text] of Object.entries(options)) {
+                    html += `<label class="quiz-mc-option" onclick="this.querySelector('input').checked=true;document.querySelectorAll('#quiz_mc_group_${i} .quiz-mc-option').forEach(o=>o.classList.remove('selected'));this.classList.add('selected')">
+                        <input type="radio" name="quiz_q${i}" value="${escapeHtml(letter)}">
+                        <span><strong>${escapeHtml(letter)})</strong> ${escapeHtml(text)}</span>
+                    </label>`;
+                }
+                html += '</div>';
+            } else {
+                html += `<textarea class="quiz-open-textarea" id="quiz_open_${i}" placeholder="Typ je antwoord hier..."></textarea>`;
+            }
+
+            html += '</div>';
+        });
+
+        html += `<button class="btn btn-primary" id="quizSubmitBtn" style="margin-top:16px">Toets inleveren</button>
+        </div>`;
+
+        quizExecutionView.innerHTML = html;
+        quizShowView('execution');
+
+        document.getElementById('quizSubmitBtn').addEventListener('click', submitQuiz);
+    }
+
+    async function submitQuiz() {
+        // Collect answers
+        const answers = [];
+        for (let i = 0; i < _quizQuestions.length; i++) {
+            if (_quizType === 'mc3' || _quizType === 'mc4') {
+                const selected = document.querySelector(`input[name="quiz_q${i}"]:checked`);
+                answers.push(selected ? selected.value : '');
+            } else {
+                const textarea = document.getElementById(`quiz_open_${i}`);
+                answers.push(textarea ? textarea.value.trim() : '');
+            }
+        }
+
+        // Check if at least one answer is filled
+        if (answers.every(a => !a)) {
+            showStatus('Beantwoord minstens een vraag voordat je de toets inlevert.', 'error');
+            return;
+        }
+
+        const submitBtn = document.getElementById('quizSubmitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Bezig met beoordelen...';
+
+        try {
+            const res = await fetch(`${API}/api/quiz/evaluate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questions: _quizQuestions,
+                    answers: answers,
+                    quiz_type: _quizType,
+                    subject: _quizSubject,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Fout bij beoordeling');
+
+            // Track token usage
+            if (data.usage) {
+                const inTok = data.usage.input_tokens || 0;
+                const outTok = data.usage.output_tokens || 0;
+                const totalTokens = inTok + outTok;
+                const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
+                if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+                window._tokenStats.input += inTok;
+                window._tokenStats.output += outTok;
+                window._tokenStats.total += totalTokens;
+                window._tokenStats.cost += costUsd;
+                window._tokenStats.calls += 1;
+                _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: 0, cost: costUsd, calls: 1 });
+            }
+
+            renderQuizResults(data);
+        } catch (err) {
+            showStatus(`Fout: ${err.message}`, 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Toets inleveren';
+        }
+    }
+
+    function renderQuizResults(data) {
+        const typeLabels = { mc3: 'MC (3 opties)', mc4: 'MC (4 opties)', open: 'Open vragen' };
+        const diffLabels = { basis: '🟢 Basis', gemiddeld: '🟡 Gemiddeld', gevorderd: '🔴 Gevorderd' };
+        let html = `<div class="quiz-results-card">
+            <h2>Resultaten: ${escapeHtml(_quizSubject)}</h2>
+            <div class="quiz-subtitle">${typeLabels[_quizType] || _quizType} &mdash; ${diffLabels[_quizDifficulty] || _quizDifficulty} &mdash; ${data.total} vragen</div>
+            <div class="quiz-score-banner">
+                <div class="quiz-score-big">${data.score}/${data.total}</div>
+                <div class="quiz-score-pct">${data.percentage}% correct</div>
+            </div>`;
+
+        data.results.forEach((r, i) => {
+            const cls = r.is_correct ? 'correct' : 'incorrect';
+            const icon = r.is_correct ? '&#x2705;' : '&#x274C;';
+            html += `<div class="quiz-result-item ${cls}">
+                <div class="qr-question">${icon} Vraag ${i + 1}: ${escapeHtml(r.question)}</div>
+                <div class="qr-answer-row"><strong>Jouw antwoord:</strong> ${escapeHtml(r.user_answer || '(niet beantwoord)')}</div>`;
+            if (!r.is_correct) {
+                html += `<div class="qr-answer-row"><strong>Correct antwoord:</strong> ${escapeHtml(r.correct_answer || '')}</div>`;
+            }
+            if (r.feedback) {
+                html += `<div class="qr-feedback">${escapeHtml(r.feedback)}</div>`;
+            }
+            html += '</div>';
+        });
+
+        if (data.overall_feedback) {
+            html += `<div class="quiz-overall-feedback">${markdownToHtml(data.overall_feedback)}</div>`;
+        }
+
+        html += `<div class="quiz-btn-row">
+            <button class="btn btn-primary" id="quizSaveBtn">Opslaan als rapport</button>
+            <button class="btn btn-secondary" id="quizNewBtn">Nieuwe toets</button>
+        </div></div>`;
+
+        quizResultsView.innerHTML = html;
+        quizShowView('results');
+
+        // Store data for saving
+        quizResultsView._data = data;
+
+        document.getElementById('quizSaveBtn').addEventListener('click', saveQuizResult);
+        document.getElementById('quizNewBtn').addEventListener('click', () => {
+            quizShowView('setup');
+        });
+    }
+
+    async function saveQuizResult() {
+        const data = quizResultsView._data;
+        if (!data) return;
+
+        const saveBtn = document.getElementById('quizSaveBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Opslaan...';
+
+        try {
+            // Enrich results with options for the save endpoint
+            const enrichedResults = data.results.map((r, i) => {
+                const enriched = { ...r };
+                if (_quizQuestions[i] && _quizQuestions[i].options) {
+                    enriched.options = _quizQuestions[i].options;
+                }
+                return enriched;
+            });
+
+            const res = await fetch(`${API}/api/quiz/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subject: _quizSubject,
+                    quiz_type: _quizType,
+                    difficulty: _quizDifficulty,
+                    score: data.score,
+                    total: data.total,
+                    percentage: data.percentage,
+                    results: enrichedResults,
+                    overall_feedback: data.overall_feedback || '',
+                }),
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.detail || 'Opslaan mislukt');
+            showStatus('Toetsresultaat opgeslagen als rapport.', 'success');
+            saveBtn.textContent = 'Opgeslagen!';
+        } catch (err) {
+            showStatus(`Fout bij opslaan: ${err.message}`, 'error');
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Opslaan als rapport';
+        }
+    }
 
     // ── Init ───────────────────────────────────────
     loadDocuments();

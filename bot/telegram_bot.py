@@ -446,7 +446,7 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Sessie beëindigd. Feedback wordt gegenereerd... ⏳")
 
     if len(session.messages) < 2:
-        await update.message.reply_text("Te weinig berichten voor feedback. Probeer volgende keer langer te oefenen.")
+        await update.message.reply_text("Te weinig berichten voor feedback. Probeer de gesprekssimulatie langer voort te zetten.")
         return
 
     feedback = await generate_feedback(session)
