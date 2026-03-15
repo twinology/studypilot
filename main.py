@@ -22,9 +22,9 @@ import urllib.request
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -236,9 +236,111 @@ class GenerateScenarioRequest(BaseModel):
 # ── Document endpoints ───────────────────────────────────────────────
 
 
+# Track background image processing progress
+_image_progress: dict = {}  # filename -> {"total": N, "done": N, "status": str, "chunks": N}
+
+
+def _save_doc_meta(filename: str, **kwargs):
+    """Save metadata (index_mode, display_name) for a document in _crawl_meta.json."""
+    meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
+    meta = {}
+    if meta_path.exists():
+        try:
+            raw = json.loads(meta_path.read_text(encoding="utf-8"))
+            # Migrate old format: {filename: url_string} → {filename: {display_name: url_string}}
+            for k, v in raw.items():
+                if isinstance(v, str):
+                    meta[k] = {"display_name": v}
+                elif isinstance(v, dict):
+                    meta[k] = v
+                else:
+                    meta[k] = {}
+        except Exception:
+            pass
+    if filename not in meta:
+        meta[filename] = {}
+    meta[filename].update(kwargs)
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_doc_meta() -> dict:
+    """Load all document metadata from _crawl_meta.json."""
+    meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        raw = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta = {}
+        for k, v in raw.items():
+            if isinstance(v, str):
+                meta[k] = {"display_name": v}
+            elif isinstance(v, dict):
+                meta[k] = v
+            else:
+                meta[k] = {}
+        return meta
+    except Exception:
+        return {}
+
+
+def _process_images_background(dest: Path, filename: str):
+    """Process images in the background (runs in a thread). Called after text is already indexed."""
+    try:
+        from rag.image_extractor import extract_document_images
+        from rag.image_describer import describe_images
+        images = extract_document_images(dest, filename)
+        if not images:
+            _image_progress[filename] = {"total": 0, "done": 0, "status": "done", "chunks": 0}
+            logger.info(f"Geen afbeeldingen gevonden in {filename}")
+            return
+
+        total = len(images)
+        _image_progress[filename] = {"total": total, "done": 0, "status": "processing", "chunks": 0}
+
+        # Process images one by one and update progress
+        from rag.image_describer import describe_single_image
+        all_chunks = []
+        all_metas = []
+        for i, img in enumerate(images):
+            try:
+                chunk, meta = describe_single_image(img, filename)
+                if chunk:
+                    all_chunks.append(chunk)
+                    all_metas.append(meta)
+            except Exception as e:
+                logger.warning(f"Afbeelding {getattr(img, 'file_path', img)} overgeslagen: {e}")
+            _image_progress[filename]["done"] = i + 1
+
+        if all_chunks:
+            num_image_chunks = add_document(all_chunks, filename, extra_metadatas=all_metas)
+            _image_progress[filename]["chunks"] = num_image_chunks
+            logger.info(f"✓ Afbeeldingen verwerkt: {filename} — {total} afbeeldingen, {num_image_chunks} chunks")
+        else:
+            logger.info(f"Geen afbeelding-chunks gegenereerd voor {filename}")
+
+        _image_progress[filename]["status"] = "done"
+    except Exception as e:
+        _image_progress[filename] = {"total": 0, "done": 0, "status": "error", "chunks": 0, "error": str(e)}
+        logger.warning(f"Image extractie fout op achtergrond: {e}")
+
+
+@app.get("/api/upload/image-progress/{filename}")
+async def get_image_progress(filename: str):
+    """Get progress of background image processing."""
+    if filename in _image_progress:
+        result = _image_progress[filename]
+    else:
+        result = {"total": 0, "done": 0, "status": "unknown", "chunks": 0}
+    return JSONResponse(content=result, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
+
+
 @app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...)):
-    """Upload and process a document."""
+async def upload_document(file: UploadFile = File(...), index_mode: str = Form("all")):
+    """Upload and process a document. index_mode: 'all' (text+images), 'text' (text only), 'images' (images only)."""
     allowed = {".pdf", ".docx", ".doc", ".txt", ".md", ".html", ".htm"}
     suffix = Path(file.filename).suffix.lower()
     if suffix not in allowed:
@@ -249,45 +351,58 @@ async def upload_document(file: UploadFile = File(...)):
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # Process
-    try:
-        text = load_document(dest)
-        if not text or not text.strip():
-            os.remove(dest)
-            raise HTTPException(400, "Kon geen tekst uit het document extraheren.")
-        chunks = chunk_text(text)
-        num_chunks = add_document(chunks, file.filename)
-        logger.info(f"Document geupload: {file.filename} ({len(text)} tekens, {num_chunks} chunks)")
+    do_text = index_mode in ("all", "text")
+    do_images = index_mode in ("all", "images")
 
-        # Multimodal: extract and describe images
-        num_image_chunks = 0
-        if config.EXTRACT_IMAGES and suffix in (".pdf", ".docx", ".doc"):
-            try:
-                from rag.image_extractor import extract_document_images
-                from rag.image_describer import describe_images
-                images = extract_document_images(dest, file.filename)
-                if images:
-                    image_chunks, image_metas = describe_images(images, file.filename)
-                    if image_chunks:
-                        num_image_chunks = add_document(image_chunks, file.filename, extra_metadatas=image_metas)
-                        logger.info(f"Afbeeldingen verwerkt: {len(images)} gevonden, {num_image_chunks} chunks")
-            except Exception as e:
-                logger.warning(f"Image extractie fout (document toch verwerkt): {e}")
+    # Process text
+    num_chunks = 0
+    text = ""
+    try:
+        if do_text:
+            text = load_document(dest)
+            if not text or not text.strip():
+                if not do_images:
+                    os.remove(dest)
+                    raise HTTPException(400, "Kon geen tekst uit het document extraheren.")
+            else:
+                chunks = chunk_text(text)
+                num_chunks = add_document(chunks, file.filename)
+                logger.info(f"Document geupload: {file.filename} ({len(text)} tekens, {num_chunks} chunks, modus={index_mode})")
+        else:
+            logger.info(f"Document geupload (alleen afbeeldingen): {file.filename} (modus={index_mode})")
+
+        # Schedule image processing in background thread (won't block the response)
+        images_scheduled = False
+        if do_images and config.EXTRACT_IMAGES and suffix in (".pdf", ".docx", ".doc"):
+            thread = threading.Thread(target=_process_images_background, args=(dest, file.filename), daemon=True)
+            thread.start()
+            images_scheduled = True
+            logger.info(f"Afbeelding-verwerking gestart op achtergrond voor {file.filename}")
+
+        # Save index_mode in meta
+        _save_doc_meta(file.filename, index_mode=index_mode)
 
         return {
             "status": "ok",
             "filename": file.filename,
             "chunks": num_chunks,
-            "image_chunks": num_image_chunks,
+            "image_chunks": 0,
+            "images_processing": images_scheduled,
+            "index_mode": index_mode,
             "characters": len(text),
         }
     except ValueError as e:
-        os.remove(dest)
+        if dest.exists():
+            os.remove(dest)
         raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error(f"Onverwachte fout bij verwerking van {file.filename}: {e}")
+        raise HTTPException(500, f"Fout bij verwerking: {str(e)}")
 
 
 class UrlUploadRequest(BaseModel):
     url: str
+    index_mode: str = "all"  # "all", "text", "images"
 
 
 _FETCH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -377,6 +492,9 @@ async def upload_url(req: UrlUploadRequest):
         num_chunks = add_document(chunks, filename)
         logger.info(f"URL geïndexeerd: {url} -> {filename} ({len(text)} tekens, {num_chunks} chunks)")
 
+        # Save metadata
+        _save_doc_meta(filename, display_name=url, index_mode=req.index_mode if hasattr(req, 'index_mode') else "text")
+
         return {
             "status": "ok",
             "filename": filename,
@@ -394,6 +512,7 @@ class CrawlWebsiteRequest(BaseModel):
     url: str
     max_depth: int = 3
     max_pages: int = 50
+    index_mode: str = "all"  # "all", "text", "images"
 
 
 @app.post("/api/crawl-website")
@@ -648,7 +767,7 @@ async def crawl_website(req: CrawlWebsiteRequest):
             "url": page_url,
             "title": page_title,
             "characters": len(cleaned_content),
-            "content": cleaned_content[:5000],
+            "content": cleaned_content,
         })
 
     if not page_details:
@@ -673,15 +792,7 @@ async def crawl_website(req: CrawlWebsiteRequest):
             f.write(combined_text)
 
         # Save metadata mapping filename -> original URL for display
-        meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
-        crawl_meta = {}
-        if meta_path.exists():
-            try:
-                crawl_meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            except Exception:
-                crawl_meta = {}
-        crawl_meta[filename] = url
-        meta_path.write_text(json.dumps(crawl_meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        _save_doc_meta(filename, display_name=url, index_mode=index_mode)
 
         text = load_document(dest)
         if not text or not text.strip():
@@ -723,30 +834,31 @@ async def get_documents():
     except Exception:
         indexed_docs = set()
 
-    # Load crawl metadata for display names
-    crawl_meta = {}
-    meta_path = config.DOCUMENTS_DIR / "_crawl_meta.json"
-    if meta_path.exists():
-        try:
-            crawl_meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except Exception:
-            crawl_meta = {}
+    # Load document metadata (display names, index modes)
+    doc_meta = _load_doc_meta()
 
     # List all physical files in the documents directory
     file_info = []
     if config.DOCUMENTS_DIR.exists():
         for f in sorted(config.DOCUMENTS_DIR.iterdir()):
             if f.is_file() and f.suffix.lower() in allowed:
+                meta = doc_meta.get(f.name, {})
                 doc = {
                     "name": f.name,
                     "size": f.stat().st_size,
                     "indexed": f.name in indexed_docs,
+                    "index_mode": meta.get("index_mode", "all"),
                 }
-                # If this file was crawled, show the original URL as display name
-                if f.name in crawl_meta:
-                    doc["display_name"] = crawl_meta[f.name]
+                if "display_name" in meta:
+                    doc["display_name"] = meta["display_name"]
                 file_info.append(doc)
-    return {"documents": file_info}
+    # Include any active image processing status
+    active_processing = {}
+    for fname, prog in _image_progress.items():
+        if prog.get("status") == "processing":
+            active_processing[fname] = prog
+
+    return {"documents": file_info, "image_processing": active_processing}
 
 
 @app.delete("/api/documents/{doc_name}")
@@ -771,6 +883,82 @@ async def remove_document(doc_name: str):
         except Exception:
             pass
     return {"status": "ok", "chunks_deleted": deleted}
+
+
+class ReindexRequest(BaseModel):
+    index_mode: str = "all"
+
+
+@app.post("/api/documents/{doc_name}/reindex")
+async def reindex_document(doc_name: str, req: ReindexRequest):
+    """Re-index a single document with the specified index mode."""
+    file_path = config.DOCUMENTS_DIR / doc_name
+    if not file_path.exists():
+        raise HTTPException(404, "Document niet gevonden.")
+
+    suffix = file_path.suffix.lower()
+    do_text = req.index_mode in ("all", "text")
+    do_images = req.index_mode in ("all", "images")
+
+    # Remove old index entries first
+    try:
+        delete_document(doc_name)
+    except Exception:
+        pass
+
+    # Re-index text
+    num_chunks = 0
+    if do_text:
+        text = load_document(file_path)
+        if text and text.strip():
+            chunks = chunk_text(text)
+            num_chunks = add_document(chunks, doc_name)
+            logger.info(f"Document hergeïndexeerd: {doc_name} ({len(text)} tekens, {num_chunks} chunks, modus={req.index_mode})")
+
+    # Schedule image re-processing
+    images_scheduled = False
+    if do_images and config.EXTRACT_IMAGES and suffix in (".pdf", ".docx", ".doc"):
+        # Clean old images first
+        image_dir = config.IMAGES_DIR / file_path.stem
+        if image_dir.exists():
+            shutil.rmtree(image_dir)
+        thread = threading.Thread(target=_process_images_background, args=(file_path, doc_name), daemon=True)
+        thread.start()
+        images_scheduled = True
+        logger.info(f"Afbeelding-herverwerking gestart op achtergrond voor {doc_name}")
+
+    # Update index mode in metadata
+    _save_doc_meta(doc_name, index_mode=req.index_mode)
+
+    return {
+        "status": "ok",
+        "filename": doc_name,
+        "chunks": num_chunks,
+        "images_processing": images_scheduled,
+        "index_mode": req.index_mode,
+    }
+
+
+@app.get("/api/documents/{doc_name}/content")
+async def get_document_content(doc_name: str):
+    """Return the text content of a document for viewing."""
+    file_path = config.DOCUMENTS_DIR / doc_name
+    if not file_path.exists():
+        raise HTTPException(404, "Document niet gevonden.")
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except Exception:
+        try:
+            text = file_path.read_text(encoding="latin-1")
+        except Exception as e:
+            raise HTTPException(500, f"Kan document niet lezen: {e}")
+
+    # Load display name from document metadata
+    doc_meta = _load_doc_meta()
+    meta = doc_meta.get(doc_name, {})
+    display_name = meta.get("display_name", doc_name)
+
+    return {"name": doc_name, "display_name": display_name, "content": text, "size": len(text)}
 
 
 # ── Re-index endpoint ─────────────────────────────────────────────────
@@ -1051,7 +1239,7 @@ async def session_feedback(req: SessionFeedbackRequest):
 
     if len(session.messages) < 2:
         return {
-            "feedback": "Er zijn te weinig berichten uitgewisseld voor een zinvolle analyse. Probeer langer te oefenen.",
+            "feedback": "Er zijn te weinig berichten uitgewisseld voor een zinvolle analyse. Probeer de gesprekssimulatie langer voort te zetten.",
             "message_count": len(session.messages),
         }
 
@@ -1450,7 +1638,7 @@ async def get_app_info():
             "name": "StudyPilot",
             "version": config.VERSION,
             "version_name": config.VERSION_NAME,
-            "tagline": "Minder zoeken, meer oefenen en sneller leren!",
+            "tagline": "Minder zoeken, meer simuleren en sneller leren!",
             "license": "MIT",
             "author": "twinology.ai",
             "repository": "https://github.com/twinology/studypilot",
@@ -1511,8 +1699,8 @@ async def get_app_info():
                 "website": "https://elevenlabs.io",
             },
             "practice_sessions": {
-                "name": "Oefensessies met AI-acteurs",
-                "description": "Oefen communicatievaardigheden met AI-personages die in rol blijven",
+                "name": "Gesprekssimulaties met AI-acteurs",
+                "description": "Simuleer communicatievaardigheden met AI-personages die in rol blijven",
             },
             "conversation_export": {
                 "name": "Rapport exporteren",
@@ -1668,6 +1856,9 @@ async def get_exchange_rate():
 async def serve_web():
     html_path = config.BASE_DIR / "web" / "index.html"
     content = html_path.read_text(encoding="utf-8")
+    # Inject cache-busting meta tag + version comment to force reload
+    import time as _time
+    content = content.replace("<head>", f'<head>\n<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n<!-- v{config.VERSION}-{_time.time()} -->', 1)
     return HTMLResponse(
         content=content,
         headers={

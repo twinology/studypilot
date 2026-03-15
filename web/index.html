@@ -430,6 +430,18 @@
         }
         .doc-item .name { font-weight: 500; }
         .doc-item .size { color: var(--text-muted); font-size: 12px; margin-left: 12px; }
+        .doc-item .doc-actions { display: flex; gap: 4px; align-items: center; }
+        .doc-item .view-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .doc-item .view-btn:hover { opacity: 1; }
         .doc-item .delete-btn {
             background: none;
             border: none;
@@ -905,9 +917,26 @@
             padding: 8px 24px;
             font-size: 12px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
         }
         .status-bar.error { background: #fef2f2; color: var(--danger); }
         .status-bar.success { background: #f0fdf4; color: var(--success); }
+        .status-bar.progress {
+            background: #f0fdf4;
+            color: #166534;
+        }
+        .status-bar .progress-fill {
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            background: rgba(34, 197, 94, 0.2);
+            transition: width 0.5s ease;
+            z-index: 0;
+        }
+        .status-bar .progress-text {
+            position: relative;
+            z-index: 1;
+        }
         .hidden { display: none !important; }
 
         /* ── Upload progress overlay ─────────────── */
@@ -1193,14 +1222,14 @@
         <img src="/images/logo.png" alt="StudyPilot logo" class="header-logo">
         <div>
             <h1>StudyPilot</h1>
-            <span class="subtitle">Minder zoeken, meer oefenen en sneller leren!</span>
+            <span class="subtitle">Minder zoeken, meer simuleren en sneller leren!</span>
         </div>
     </header>
 
     <nav class="tabs">
         <div class="tab active" data-tab="docs">Kennisbank</div>
         <div class="tab" data-tab="chat">Chat</div>
-        <div class="tab" data-tab="practice">Oefenen</div>
+        <div class="tab" data-tab="practice">Gesprekssimulatie</div>
         <div class="tab" data-tab="conversations">Rapporten</div>
         <div class="tab" data-tab="logs">Logs</div>
         <div class="tab" data-tab="setup">⚙ Setup</div>
@@ -1240,6 +1269,19 @@
                 </ul>
             </div>
 
+            <div style="display:flex;align-items:center;gap:16px;padding:10px 16px;background:var(--bg-secondary);border-radius:10px;margin-bottom:10px">
+                <span style="font-weight:700;font-size:13px;color:var(--text-muted);white-space:nowrap">Indexeer-modus:</span>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+                    <input type="radio" name="indexMode" value="all" checked> 📄🖼️ Tekst + afbeeldingen
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+                    <input type="radio" name="indexMode" value="text"> 📄 Alleen tekst
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+                    <input type="radio" name="indexMode" value="images"> 🖼️ Alleen afbeeldingen/tabellen
+                </label>
+            </div>
+
             <div class="upload-zone" id="uploadZone">
                 <h3>Sleep documenten hierheen</h3>
                 <p>of klik om bestanden te selecteren</p>
@@ -1248,12 +1290,12 @@
             </div>
             <div class="url-upload-bar">
                 <input type="url" id="urlInput" placeholder="https://voorbeeld.nl/artikel — voer een URL in om een webpagina te indexeren" autocomplete="off">
-                <button class="btn btn-primary" id="urlUploadBtn" title="Webpagina ophalen en indexeren">Indexeer URL</button>
+                <button class="btn btn-primary" id="urlUploadBtn" title="Webpagina ophalen en indexeren" style="min-width:160px">🌐 Indexeer URL</button>
             </div>
             <div class="url-upload-bar" style="margin-top:4px">
-                <input type="url" id="crawlInput" placeholder="https://voorbeeld.nl — crawl een hele website (alle subpagina's)" autocomplete="off">
-                <button class="btn btn-primary" id="crawlBtn" title="Hele website crawlen en indexeren via Tavily" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);min-width:140px">
-                    🕷️ Crawl Site
+                <input type="url" id="crawlInput" placeholder="https://voorbeeld.nl/artikel — crawl alle subpagina's van de website vanaf dit niveau" autocomplete="off">
+                <button class="btn btn-primary" id="crawlBtn" title="Hele website crawlen en indexeren via Tavily" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);min-width:160px">
+                    <span style="filter:brightness(10)">🕷️</span> Crawl Site
                 </button>
             </div>
             <div id="crawlProgress" style="display:none;margin:8px 0;padding:10px 14px;background:var(--bg-secondary);border-radius:10px;font-size:13px;">
@@ -1267,7 +1309,7 @@
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
                 <h3>Geüploade documenten</h3>
-                <button class="btn btn-sm" id="reindexBtn" style="background:#8b5cf6;color:#fff;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;border:none" title="Alle documenten opnieuw indexeren met het huidige embedding model">⟳ Herindexeer</button>
+                <button class="btn btn-primary" id="reindexBtn" style="background:#8b5cf6;min-width:160px" title="Alle documenten opnieuw indexeren met het huidige embedding model">🔄 Herindexeer alles</button>
             </div>
             <ul class="doc-list" id="docList">
                 <li style="color:var(--text-muted);font-size:14px;padding:12px">Nog geen documenten geüpload</li>
@@ -1291,11 +1333,11 @@
             </div>
         </div>
 
-        <!-- ── Oefenen ─────────────────────────────── -->
+        <!-- ── Gesprekssimulatie ─────────────────────────────── -->
         <div id="practicePanel" class="panel practice-panel">
             <div id="practiceLockOverlay" class="lock-overlay">
                 <span class="lock-icon">🔒</span>
-                <span>Stel eerst een API-key in om te oefenen.</span>
+                <span>Stel eerst een API-key in voor gesprekssimulatie.</span>
                 <a onclick="switchToSetup()">Ga naar Setup</a>
             </div>
             <!-- Scenario picker (shown when no session active) -->
@@ -1303,7 +1345,7 @@
                 <h2>Genereer een scenario</h2>
 
                 <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
-                    Voer een onderwerp in en kies een moeilijkheidsgraad om een oefenscenario te genereren op basis van je kennisbank of de algemene kennis van het AI-model.
+                    Voer een onderwerp in en kies een moeilijkheidsgraad om een gesprekssimulatie te genereren op basis van je kennisbank of de algemene kennis van het AI-model.
                 </p>
 
                 <div class="generate-section">
@@ -1364,15 +1406,14 @@
                     <select id="convTypeFilter">
                         <option value="">Alle rapporten</option>
                         <option value="chat">Chats</option>
-                        <option value="session">Oefensessies</option>
+                        <option value="session">Gesprekssimulaties</option>
                     </select>
                     <button class="btn btn-sm btn-secondary" id="refreshConvs">Vernieuwen</button>
-                    <button class="btn btn-sm btn-primary" id="saveChatBtn">Chat opslaan</button>
                 </div>
                 <ul class="conv-list" id="convList">
                     <li class="conv-empty">
                         <h3>Nog geen rapporten opgeslagen</h3>
-                        <p>Chats en oefensessies worden hier automatisch bewaard.</p>
+                        <p>Chats en gesprekssimulaties worden hier automatisch bewaard.</p>
                     </li>
                 </ul>
             </div>
@@ -1516,8 +1557,8 @@
                 <img src="/images/logo.png" alt="StudyPilot" class="info-hero-logo">
                 <div class="info-hero-text">
                     <h2>StudyPilot</h2>
-                    <span class="version-tag" id="infoVersionTag">v2.9.2</span>
-                    <p>Minder zoeken, meer oefenen en sneller leren!</p>
+                    <span class="version-tag" id="infoVersionTag">v2.10.0</span>
+                    <p>Minder zoeken, meer simuleren en sneller leren!</p>
                 </div>
             </div>
 
@@ -1531,11 +1572,11 @@
                     </div>
                 </div>
                 <p style="font-size:14px;line-height:1.7;color:var(--text);margin:0 0 12px 0;">
-                    StudyPilot is een AI-gestuurde studietutor die je helpt bij het leren door middel van intelligente documentanalyse en interactieve oefensessies. Upload je studiemateriaal en stel vragen, oefen gesprekken met AI-acteurs, of maak toetsen — allemaal op basis van jouw eigen kennisbank.
+                    StudyPilot is een AI-gestuurde studietutor die je helpt bij het leren door middel van intelligente documentanalyse en interactieve gesprekssimulaties. Upload je studiemateriaal en stel vragen, simuleer gesprekken met AI-acteurs, of maak toetsen — allemaal op basis van jouw eigen kennisbank.
                 </p>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
                     <span class="info-tag">RAG-chat over eigen documenten</span>
-                    <span class="info-tag">Oefensessies met AI-acteurs</span>
+                    <span class="info-tag">Gesprekssimulaties met AI-acteurs</span>
                     <span class="info-tag">Toetsen (MC &amp; open vragen)</span>
                     <span class="info-tag">Spraak in/uit (ElevenLabs / browser TTS)</span>
                     <span class="info-tag">Multimodal (afbeeldingen uit PDF/DOCX)</span>
@@ -1705,7 +1746,7 @@
                     </div>
                     <div class="info-row"><span class="info-label">🤖 AI Chat</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
                     <div class="info-row"><span class="info-label">🔍 Multimodal RAG</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
-                    <div class="info-row"><span class="info-label">🎭 Oefensessies</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
+                    <div class="info-row"><span class="info-label">🎭 Gesprekssimulaties</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
                     <div class="info-row"><span class="info-label">🔊 ElevenLabs TTS</span><span class="info-value" id="infoTTSStatus"><span class="info-badge yellow">Optioneel</span></span></div>
                     <div class="info-row"><span class="info-label">📤 Export (MD/DOCX/PDF)</span><span class="info-value"><span class="info-badge green">Actief</span></span></div>
                     <div class="info-row"><span class="info-label">🤖 Telegram bot</span><span class="info-value"><span class="info-badge yellow">Optioneel</span></span></div>
@@ -1732,7 +1773,7 @@
                         <span class="info-card-icon">🔢</span>
                         <div>
                             <div class="info-card-title">Token Verbruik</div>
-                            <div class="info-card-subtitle">Per sessie en totalen (chat + oefeningen)</div>
+                            <div class="info-card-subtitle">Per sessie en totalen (chat + gesprekssimulaties)</div>
                         </div>
                     </div>
                     <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px;">📊 Deze sessie</div>
@@ -1760,7 +1801,7 @@
     <div class="feedback-overlay" id="feedbackOverlay">
         <div class="feedback-content">
             <button class="close-btn" id="closeFeedback">&times;</button>
-            <h2>Feedback op je oefensessie</h2>
+            <h2>Feedback op je gesprekssimulatie</h2>
             <div id="feedbackText"></div>
         </div>
     </div>
@@ -1832,14 +1873,20 @@
     });
 
     // ── Status bar ─────────────────────────────────
-    function showStatus(msg, type = 'success', duration = 6000) {
+    function showStatus(msg, type = 'success', duration) {
         const bar = document.getElementById('statusBar');
-        bar.textContent = msg;
+        // Clear progress active flag when showing a regular status
+        bar._progressActive = false;
+        bar.innerHTML = `<span class="progress-text" style="font-weight:700">${msg}</span>`;
         bar.className = `status-bar ${type}`;
         bar.classList.remove('hidden');
         if (showStatus._timer) clearTimeout(showStatus._timer);
-        showStatus._timer = setTimeout(() => bar.classList.add('hidden'), duration);
+        // Errors stay 15s, success 6s, info 4s
+        const dur = duration || (type === 'error' ? 15000 : type === 'info' ? 4000 : 6000);
+        showStatus._timer = setTimeout(() => bar.classList.add('hidden'), dur);
     }
+
+    // Image progress polling is handled inline in handleFiles() using the upload overlay
 
     // ── RAG toggle ────────────────────────────────
     const ragToggle = document.getElementById('ragToggle');
@@ -1945,8 +1992,14 @@
         uploadOverlay.classList.remove('active');
     }
 
+    function getIndexMode() {
+        const checked = document.querySelector('input[name="indexMode"]:checked');
+        return checked ? checked.value : 'all';
+    }
+
     async function handleFiles(files) {
         const totalFiles = files.length;
+        const indexMode = getIndexMode();
         for (let idx = 0; idx < totalFiles; idx++) {
             const file = files[idx];
             const label = totalFiles > 1 ? `${file.name} (${idx + 1}/${totalFiles})` : file.name;
@@ -1955,6 +2008,7 @@
 
             const form = new FormData();
             form.append('file', file);
+            form.append('index_mode', indexMode);
 
             try {
                 // Step 1: Uploaden
@@ -1969,24 +2023,47 @@
                 setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(1); uploadTitle.textContent = 'Tekst extraheren en chunken...'; } }, 800);
                 setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(2); uploadTitle.textContent = 'Afbeeldingen verwerken...'; } }, 2500);
                 setTimeout(() => { if (uploadOverlay.classList.contains('active')) { setUploadStep(3); uploadTitle.textContent = 'Embeddings genereren (dit kan even duren)...'; } }, 5000);
+                // Extra berichten voor grote documenten
+                setTimeout(() => { if (uploadOverlay.classList.contains('active')) { uploadTitle.textContent = 'Nog bezig met afbeeldingen beschrijven... (grote PDF\'s kunnen minuten duren)'; } }, 30000);
+                setTimeout(() => { if (uploadOverlay.classList.contains('active')) { uploadTitle.textContent = 'Nog steeds bezig... bijna klaar!'; } }, 90000);
 
                 const res = await uploadPromise;
+                const contentType = res.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const text = await res.text();
+                    throw new Error(`Server fout (${res.status}): onverwacht antwoord. Mogelijk is het document te groot of complex.`);
+                }
                 const data = await res.json();
 
-                if (!res.ok) throw new Error(data.detail || 'Upload mislukt');
+                if (!res.ok) {
+                    let errMsg = 'Upload mislukt';
+                    if (data.detail) {
+                        errMsg = typeof data.detail === 'string' ? data.detail
+                            : Array.isArray(data.detail) ? data.detail.map(d => d.msg || JSON.stringify(d)).join(', ')
+                            : JSON.stringify(data.detail);
+                    }
+                    throw new Error(errMsg);
+                }
 
                 // Step 5: Done
                 setUploadStep(4);
                 uploadTitle.textContent = 'Verwerking voltooid!';
-                uploadFile.textContent = `${data.chunks} tekst-chunks` + (data.image_chunks ? ` + ${data.image_chunks} afbeelding-chunks` : '');
+                uploadFile.textContent = `${data.chunks} tekst-chunks`;
 
                 // Documentenlijst direct bijwerken
                 loadDocuments();
 
-                // Kort resultaat tonen, dan doorgaan
-                await new Promise(r => setTimeout(r, 1500));
-
-                showStatus(`✓ ${file.name} verwerkt — ${data.chunks} chunks${data.image_chunks ? ` + ${data.image_chunks} afbeeldingen` : ''}`, 'success');
+                if (data.images_processing) {
+                    // Close overlay, start independent background poll via setInterval
+                    hideUploadProgress();
+                    showStatus('✓ ' + file.name + ' tekst verwerkt (' + data.chunks + ' chunks). Afbeeldingen worden op achtergrond verwerkt...', 'success', 15000);
+                    window._startImagePollTimer(file.name);
+                } else {
+                    await new Promise(r => setTimeout(r, 1500));
+                    hideUploadProgress();
+                    const imgMsg = data.image_chunks ? ` + ${data.image_chunks} afbeeldingen` : '';
+                    showStatus(`✓ ${file.name} verwerkt — ${data.chunks} chunks${imgMsg}`, 'success');
+                }
             } catch (err) {
                 hideUploadProgress();
                 showStatus(`Fout bij ${file.name}: ${err.message}`, 'error');
@@ -1996,33 +2073,142 @@
         loadDocuments();
     }
 
+    // Independent image progress poller using setInterval (not tied to upload async flow)
+    window._imgPollTimer = null;
+    window._startImagePollTimer = function(filename) {
+        if (window._imgPollTimer) clearInterval(window._imgPollTimer);
+        var encName = encodeURIComponent(filename);
+        var errorCount = 0;
+        // Show progress bar in status area
+        var statusEl = document.getElementById('statusMessage');
+        window._imgPollTimer = setInterval(function() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/upload/image-progress/' + encName + '?_t=' + Date.now(), true);
+            xhr.onload = function() {
+                if (xhr.status !== 200) {
+                    errorCount++;
+                    if (errorCount > 10) {
+                        clearInterval(window._imgPollTimer);
+                        window._imgPollTimer = null;
+                    }
+                    return;
+                }
+                errorCount = 0;
+                var p = JSON.parse(xhr.responseText);
+                if (p.status === 'processing' && p.total > 0) {
+                    var pct = Math.round((p.done / p.total) * 100);
+                    showStatus('🖼️ Afbeeldingen embedden: ' + p.done + ' / ' + p.total + ' (' + pct + '%)', 'info', 5000);
+                } else if (p.status === 'done') {
+                    clearInterval(window._imgPollTimer);
+                    window._imgPollTimer = null;
+                    showStatus('✅ Alle ' + p.chunks + ' afbeeldingen verwerkt en geëmbedded!', 'success', 10000);
+                    loadDocuments();
+                } else if (p.status === 'error') {
+                    clearInterval(window._imgPollTimer);
+                    window._imgPollTimer = null;
+                    showStatus('❌ Fout bij afbeeldingen verwerken', 'error', 10000);
+                }
+            };
+            xhr.onerror = function() {
+                errorCount++;
+                if (errorCount > 10) {
+                    clearInterval(window._imgPollTimer);
+                    window._imgPollTimer = null;
+                }
+            };
+            xhr.send();
+        }, 3000);
+    };
+
     async function loadDocuments() {
         try {
-            const res = await fetch(`${API}/api/documents`);
+            const res = await fetch(`${API}/api/documents?_t=${Date.now()}`);
             const data = await res.json();
             if (data.documents.length === 0) {
                 docList.innerHTML = '<li style="color:var(--text-muted);font-size:14px;padding:12px">Nog geen documenten geüpload</li>';
                 return;
             }
+            // Check for active image processing and auto-poll
+            var imgProc = data.image_processing || {};
+            var hasActive = Object.keys(imgProc).length > 0;
+            if (hasActive && !window._imgPollTimer) {
+                // Auto-start polling via loadDocuments refresh
+                window._imgDocPollTimer = window._imgDocPollTimer || setInterval(function() { loadDocuments(); }, 3000);
+            } else if (!hasActive && window._imgDocPollTimer) {
+                clearInterval(window._imgDocPollTimer);
+                window._imgDocPollTimer = null;
+            }
+
             docList.innerHTML = data.documents.map(d => {
                 const badge = d.indexed
                     ? '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#dcfce7;color:#166534;font-weight:600;margin-left:8px">Geïndexeerd</span>'
                     : '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:600;margin-left:8px">Niet geïndexeerd</span>';
+                // Index mode indicator
+                const modeLabels = { all: '📝🖼️', text: '📝', images: '🖼️' };
+                const modeTitles = { all: 'Tekst + afbeeldingen', text: 'Alleen tekst', images: 'Alleen afbeeldingen/tabellen' };
+                const mode = d.index_mode || 'all';
+                const modeBadge = '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#e0e7ff;color:#3730a3;font-weight:600;margin-left:4px" title="' + (modeTitles[mode] || mode) + '">' + (modeLabels[mode] || mode) + '</span>';
                 const displayName = d.display_name
                     ? `<a href="${d.display_name}" target="_blank" style="color:var(--primary);text-decoration:none" title="${d.name}">${d.display_name}</a>`
                     : `<span>${d.name}</span>`;
+                // Show image processing progress inline if active
+                var imgBadge = '';
+                if (imgProc[d.name]) {
+                    var ip = imgProc[d.name];
+                    var pct = ip.total > 0 ? Math.round((ip.done / ip.total) * 100) : 0;
+                    imgBadge = '<div style="margin-top:4px;font-size:12px;color:#2563eb;font-weight:700">🖼️ Afbeeldingen: ' + ip.done + ' / ' + ip.total + ' (' + pct + '%)<div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:2px"><div style="background:#2563eb;height:6px;border-radius:4px;width:' + pct + '%;transition:width 0.3s"></div></div></div>';
+                }
                 return `
                 <li class="doc-item">
                     <div>
                         <span class="name">${displayName}</span>
                         <span class="size">${formatSize(d.size)}</span>
-                        ${badge}
+                        ${badge}${modeBadge}
+                        ${imgBadge}
                     </div>
-                    <button class="delete-btn" onclick="deleteDoc('${d.name}', '${d.display_name || d.name}')" title="Verwijderen">&times;</button>
+                    <div class="doc-actions">
+                        <button class="view-btn" onclick="viewDoc('${d.name}')" title="Bekijk inhoud">👁</button>
+                        <button class="view-btn" onclick="reindexDoc('${d.name}')" title="Opnieuw indexeren" style="color:#2563eb">🔄</button>
+                        <button class="delete-btn" onclick="deleteDoc('${d.name}', '${d.display_name || d.name}')" title="Verwijderen">&times;</button>
+                    </div>
                 </li>`;
             }).join('');
         } catch (err) {
             console.error('Fout bij laden documenten:', err);
+        }
+    }
+
+    async function viewDoc(name) {
+        try {
+            showStatus('Document laden...', 'info');
+            const resp = await fetch(`${API}/api/documents/${encodeURIComponent(name)}/content`);
+            if (!resp.ok) throw new Error('Kan document niet laden');
+            const data = await resp.json();
+            const modal = document.getElementById('crawlModal');
+            const stats = document.getElementById('crawlModalStats');
+            const body = document.getElementById('crawlModalBody');
+            const title = data.display_name || data.name;
+            document.querySelector('.crawl-modal-header h2').textContent = title;
+            stats.innerHTML = `<span>📄 ${(data.size / 1024).toFixed(1)} KB</span>`;
+            // Render markdown-like content as HTML
+            const rendered = data.content
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/^######\s+(.+)$/gm, '<h6>$1</h6>')
+                .replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>')
+                .replace(/^####\s+(.+)$/gm, '<h4>$1</h4>')
+                .replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
+                .replace(/^##\s+(.+)$/gm, '<h2 style="color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px;margin-top:24px">$1</h2>')
+                .replace(/^#\s+(.+)$/gm, '<h1 style="color:var(--primary)">$1</h1>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                .replace(/^---$/gm, '<hr style="margin:20px 0;border:none;border-top:2px solid var(--border)">')
+                .replace(/^\* (.+)$/gm, '<li>$1</li>')
+                .replace(/\n/g, '<br>');
+            body.innerHTML = `<div style="line-height:1.7;font-size:14px">${rendered}</div>`;
+            modal.classList.add('active');
+            showStatus('', 'info');
+        } catch (err) {
+            showStatus('Fout bij laden document: ' + err.message, 'error');
         }
     }
 
@@ -2032,6 +2218,28 @@
         await fetch(`${API}/api/documents/${encodeURIComponent(name)}`, { method: 'DELETE' });
         loadDocuments();
         showStatus(`${label} verwijderd`, 'success');
+    }
+
+    async function reindexDoc(name) {
+        showStatus(`🔄 ${name} opnieuw indexeren...`, 'info', 30000);
+        try {
+            const res = await fetch(`${API}/api/documents/${encodeURIComponent(name)}/reindex`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index_mode: getIndexMode() })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Herindexeren mislukt');
+            let msg = `✅ ${name} opnieuw geïndexeerd — ${data.chunks} chunks`;
+            if (data.images_processing) {
+                msg += ' (afbeeldingen worden op achtergrond verwerkt)';
+                window._startImagePollTimer(name);
+            }
+            showStatus(msg, 'success', 8000);
+            loadDocuments();
+        } catch (err) {
+            showStatus(`❌ Fout bij herindexeren: ${err.message}`, 'error');
+        }
     }
 
     // ── URL Upload ──────────────────────────────────────────────
@@ -2085,7 +2293,7 @@
             const res = await fetch(`${API}/api/upload-url`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url, index_mode: getIndexMode() })
             });
             const data = await res.json();
 
@@ -2289,7 +2497,7 @@
             const res = await fetch(`${API}/api/crawl-website`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, max_depth: 3, max_pages: 50 })
+                body: JSON.stringify({ url, max_depth: 3, max_pages: 50, index_mode: getIndexMode() })
             });
             const data = await res.json();
 
@@ -2475,7 +2683,7 @@
         if (type === 'bot') {
             div.innerHTML = markdownToHtml(text);
 
-            // Speak button — only in session (Oefenen), not in Chat
+            // Speak button — only in session (Gesprekssimulatie), not in Chat
             if (container === sessionMessages) {
                 const speakBtn = document.createElement('button');
                 speakBtn.className = 'speak-btn';
@@ -2632,7 +2840,7 @@
                             &middot; Emotie: <strong>${s.emotion || 'neutraal'}</strong>
                         </span>
                     </div>
-                    <button class="btn btn-primary" id="startGeneratedSession">Start oefensessie</button>
+                    <button class="btn btn-primary" id="startGeneratedSession">Start gesprekssimulatie</button>
                 </div>
             `;
             document.getElementById('startGeneratedSession').addEventListener('click', () => {
@@ -2689,7 +2897,7 @@
             if (startBtn) {
                 startBtn.disabled = false;
                 startBtn.classList.remove('btn-loading');
-                startBtn.textContent = 'Start oefensessie';
+                startBtn.textContent = 'Start gesprekssimulatie';
             }
         }
     }
@@ -3177,16 +3385,16 @@
                 convList.innerHTML = `
                     <li class="conv-empty">
                         <h3>Nog geen rapporten opgeslagen</h3>
-                        <p>Chats en oefensessies worden hier automatisch bewaard.</p>
+                        <p>Chats en gesprekssimulaties worden hier automatisch bewaard.</p>
                     </li>`;
                 return;
             }
             convList.innerHTML = data.conversations.map(c => {
                 const typeBadge = c.type === 'session'
-                    ? '<span class="conv-type-badge conv-type-session">Oefensessie</span>'
+                    ? '<span class="conv-type-badge conv-type-session">Gesprekssimulatie</span>'
                     : '<span class="conv-type-badge conv-type-chat">Chat</span>';
                 const title = c.type === 'session'
-                    ? (c.metadata.scenario_name || 'Oefensessie')
+                    ? (c.metadata.scenario_name || 'Gesprekssimulatie')
                     : (c.metadata.topic || 'Chat rapport');
                 const dateStr = c.timestamp ? new Date(c.timestamp).toLocaleString('nl-NL') : '';
                 const difficulty = c.metadata.scenario_difficulty
@@ -3224,7 +3432,7 @@
             const data = await res.json();
 
             const title = data.type === 'session'
-                ? (data.metadata.scenario_name || 'Oefensessie')
+                ? (data.metadata.scenario_name || 'Gesprekssimulatie')
                 : 'Chat rapport';
             document.getElementById('convDetailTitle').textContent = title;
 
@@ -3302,22 +3510,6 @@
 
     document.getElementById('refreshConvs').addEventListener('click', loadConversations);
     convTypeFilter.addEventListener('change', loadConversations);
-
-    document.getElementById('saveChatBtn').addEventListener('click', async () => {
-        try {
-            const res = await fetch(`${API}/api/chat/save`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: '', user_id: 'web_user' }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Opslaan mislukt');
-            showStatus(`Chat opgeslagen (${data.message_count} berichten)`, 'success');
-            loadConversations();
-        } catch (err) {
-            showStatus(`Fout: ${err.message}`, 'error');
-        }
-    });
 
     // Load conversations when tab is activated
     document.querySelectorAll('.tab').forEach(tab => {
@@ -3940,10 +4132,11 @@
     // ── Init ───────────────────────────────────────
     loadDocuments();
     loadSettings();
+    loadInfo();
     </script>
     <footer class="copyright-footer">
         <span>Copyright &copy; 2026 twinology.ai</span>
-        <span class="footer-version" id="footerVersion">v2.9.2 — Multimodal RAG Edition</span>
+        <span class="footer-version" id="footerVersion">v2.10.0 — Multimodal RAG Edition</span>
     </footer>
 </body>
 </html>
