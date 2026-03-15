@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # ── Version ─────────────────────────────────────────────────────────
-VERSION = "2.13.0"
+VERSION = "2.14.0"
 VERSION_NAME = "Multimodal RAG Edition"
 
 BASE_DIR = Path(__file__).parent
@@ -34,6 +34,12 @@ EXTRACT_IMAGES = True           # Afbeeldingen uit PDF/DOCX extraheren en beschr
 IMAGE_MIN_SIZE = 50             # Minimum pixels (breedte/hoogte) — filtert iconen/bullets
 IMAGE_MAX_DIMENSION = 1024      # Maximale dimensie in pixels — resize voor vision API
 MAX_IMAGES_IN_CONTEXT = 3       # Maximaal aantal afbeeldingen meegestuurd per query
+
+# STT settings (Speech-to-Text)
+LOCAL_WHISPER_MODEL = "large-v3"        # Model size for faster-whisper
+LOCAL_WHISPER_DEVICE = "cpu"            # "cpu" or "cuda"
+LOCAL_WHISPER_COMPUTE_TYPE = "int8"     # "int8" for CPU, "float16" for GPU
+WHISPER_LANGUAGE = "nl"                 # Default language for transcription
 
 # Token stats persistence
 TOKEN_STATS_FILE = BASE_DIR / "token_stats.json"

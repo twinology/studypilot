@@ -23,6 +23,8 @@ _DEFAULTS = {
     "ollama_base_url": "http://localhost:11434",
     "openrouter_api_key": "",
     "tavily_api_key": "",
+    "stt_provider": "browser",       # "browser", "openai_whisper", "local_whisper"
+    "openai_stt_key": "",             # Separate key for OpenAI Whisper STT
 }
 
 

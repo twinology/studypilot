@@ -1540,6 +1540,7 @@
                     <div class="voice-status-wrapper">
                         <span class="voice-status" id="voiceStatus">Klik op de microfoon of typ hieronder</span>
                         <span class="tts-provider">&#9835; Spraak via ElevenLabs</span>
+                        <span class="tts-provider" id="sttProviderLabel">🎤 Browser spraakherkenning</span>
                     </div>
                     <div class="tts-toggle">
                         <label><input type="checkbox" id="ttsToggle" checked> Spraak</label>
@@ -1711,6 +1712,29 @@
                     <input type="password" id="setupElKey" placeholder="sk_...">
                     <div class="field-hint">Optioneel. Zonder key wordt browser-spraak (Web Speech API) gebruikt als fallback.</div>
                 </div>
+            </div>
+
+            <div class="setup-section">
+                <h3>🎤 Spraakherkenning (STT)</h3>
+                <div class="provider-radios" id="sttRadios">
+                    <div class="provider-radio stt-radio selected" data-stt="browser">
+                        <div class="provider-icon">🌐</div>
+                        <div class="provider-name">Browser</div>
+                        <div class="provider-desc">Web Speech API — gratis, Chrome/Edge</div>
+                    </div>
+                    <div class="provider-radio stt-radio" data-stt="openai_whisper">
+                        <div class="provider-icon">🟢</div>
+                        <div class="provider-name">OpenAI Whisper</div>
+                        <div class="provider-desc">Cloud API — uitstekend Nederlands</div>
+                    </div>
+                    <div class="provider-radio stt-radio" data-stt="local_whisper">
+                        <div class="provider-icon">🏠</div>
+                        <div class="provider-name">Lokaal Whisper</div>
+                        <div class="provider-desc">faster-whisper — lokaal, geen key</div>
+                    </div>
+                </div>
+                <div id="sttConfigArea"></div>
+                <div class="field-hint" id="sttHint">Browser Speech API: gratis, werkt in Chrome en Edge. Streaming herkenning.</div>
             </div>
 
             <div class="setup-section">
@@ -3241,8 +3265,10 @@
     const voiceStatus = document.getElementById('voiceStatus');
     let recognition = null;
     let isRecording = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
 
-    // Initialize Speech Recognition
+    // Initialize Browser Speech Recognition
     let micPermissionGranted = false;
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -3265,10 +3291,9 @@
                 if (event.results[i].isFinal) isFinal = true;
             }
             sessionInput.value = transcript;
-            voiceStatus.textContent = `Herkend: "${transcript}"`;
+            voiceStatus.textContent = 'Herkend: "' + transcript + '"';
             if (isFinal) {
                 voiceStatus.textContent = 'Spraak herkend. Wordt verstuurd...';
-                // Stop recording and send
                 isRecording = false;
                 recognition.stop();
                 micBtn.classList.remove('recording');
@@ -3280,8 +3305,6 @@
         recognition.onend = () => {
             console.log('Speech recognition ended, isRecording:', isRecording);
             if (isRecording) {
-                // Auto-restart if user hasn't explicitly stopped
-                // This handles the "no-speech" timeout restart
                 console.log('Auto-restarting recognition...');
                 voiceStatus.textContent = 'Nog steeds aan het luisteren... Spreek nu.';
                 try { recognition.start(); } catch(e) {
@@ -3302,7 +3325,6 @@
         recognition.onerror = (event) => {
             console.warn('Speech recognition error:', event.error);
             if (event.error === 'no-speech' && isRecording) {
-                // Don't stop — onend will auto-restart
                 voiceStatus.textContent = 'Geen spraak gedetecteerd. Blijf spreken...';
                 return;
             }
@@ -3314,11 +3336,11 @@
                 showStatus('Sta microfoontoegang toe: klik op het slot-icoon in de adresbalk → Microfoon → Toestaan', 'error');
                 return;
             }
-            if (event.error === 'aborted') return; // Normal when we call .stop()
+            if (event.error === 'aborted') return;
             isRecording = false;
             micBtn.classList.remove('recording');
             micBtn.classList.add('inactive');
-            voiceStatus.textContent = `Spraakherkenning fout: ${event.error}`;
+            voiceStatus.textContent = 'Spraakherkenning fout: ' + event.error;
         };
     }
 
@@ -3327,7 +3349,6 @@
         if (micPermissionGranted) return true;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // Permission granted — stop the stream immediately
             stream.getTracks().forEach(t => t.stop());
             micPermissionGranted = true;
             return true;
@@ -3339,50 +3360,148 @@
         }
     }
 
-    micBtn.addEventListener('click', async () => {
+    // ── Browser STT (Web Speech API) ──
+    function startBrowserRecognition() {
         if (!recognition) {
-            showStatus('Spraakherkenning wordt niet ondersteund in deze browser.', 'error');
+            showStatus('Spraakherkenning wordt niet ondersteund in deze browser. Kies OpenAI Whisper of Lokaal Whisper in Setup.', 'error');
             return;
         }
-        if (isRecording) {
-            // User explicitly stops
-            isRecording = false;
-            recognition.stop();
-            micBtn.classList.remove('recording');
-            micBtn.classList.add('inactive');
-            voiceStatus.textContent = 'Klik op de microfoon of typ hieronder';
-        } else {
-            // Check mic permission first
-            const hasPermission = await ensureMicPermission();
-            if (!hasPermission) return;
+        try {
+            recognition.start();
+            isRecording = true;
+            micBtn.classList.remove('inactive');
+            micBtn.classList.add('recording');
+            voiceStatus.textContent = 'Luisteren... Spreek nu.';
+        } catch (err) {
+            console.warn('Spraakherkenning start fout:', err.message);
+            recognition.abort();
+            setTimeout(() => {
+                try {
+                    recognition.start();
+                    isRecording = true;
+                    micBtn.classList.remove('inactive');
+                    micBtn.classList.add('recording');
+                    voiceStatus.textContent = 'Luisteren... Spreek nu.';
+                } catch (retryErr) {
+                    voiceStatus.textContent = 'Fout: ' + retryErr.message;
+                }
+            }, 200);
+        }
+    }
 
-            // Stop any playing audio first so mic doesn't pick up TTS
-            sharedAudio.pause();
-            speechSynthesis.cancel();
-            audioQueue.length = 0;
-            isPlaying = false;
+    function stopBrowserRecognition() {
+        isRecording = false;
+        if (recognition) recognition.stop();
+        micBtn.classList.remove('recording');
+        micBtn.classList.add('inactive');
+        voiceStatus.textContent = 'Klik op de microfoon of typ hieronder';
+    }
 
-            try {
-                recognition.start();
-                isRecording = true;
-                micBtn.classList.remove('inactive');
-                micBtn.classList.add('recording');
-                voiceStatus.textContent = 'Luisteren... Spreek nu.';
-            } catch (err) {
-                console.warn('Spraakherkenning start fout:', err.message);
-                recognition.abort();
-                setTimeout(() => {
-                    try {
-                        recognition.start();
-                        isRecording = true;
-                        micBtn.classList.remove('inactive');
-                        micBtn.classList.add('recording');
-                        voiceStatus.textContent = 'Luisteren... Spreek nu.';
-                    } catch (retryErr) {
-                        voiceStatus.textContent = `Fout: ${retryErr.message}`;
-                    }
-                }, 200);
+    // ── Whisper STT (MediaRecorder → server) ──
+    async function startMediaRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            micPermissionGranted = true;
+            // Prefer webm/opus, fallback to other formats
+            var mimeType = 'audio/webm;codecs=opus';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/webm';
             }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/mp4';
+            }
+            mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = function(e) {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = async function() {
+                stream.getTracks().forEach(t => t.stop());
+                if (audioChunks.length === 0) {
+                    voiceStatus.textContent = 'Geen audio opgenomen.';
+                    return;
+                }
+                var blob = new Blob(audioChunks, { type: mimeType });
+                await transcribeViaApi(blob);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            micBtn.classList.remove('inactive');
+            micBtn.classList.add('recording');
+            voiceStatus.textContent = '🔴 Opname... Klik nogmaals om te stoppen.';
+        } catch (err) {
+            console.warn('MediaRecorder start fout:', err.message);
+            voiceStatus.textContent = '⚠️ Kon microfoon niet openen: ' + err.message;
+        }
+    }
+
+    function stopMediaRecording() {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        micBtn.classList.add('inactive');
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            voiceStatus.textContent = '⏳ Transcriberen...';
+            mediaRecorder.stop();
+        }
+    }
+
+    async function transcribeViaApi(audioBlob) {
+        voiceStatus.textContent = '⏳ Transcriberen...';
+        var formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+        try {
+            var res = await fetch(API + '/api/stt', {
+                method: 'POST',
+                body: formData,
+            });
+            if (!res.ok) {
+                var err = {};
+                try { err = await res.json(); } catch(e) {}
+                throw new Error(err.detail || 'STT fout (' + res.status + ')');
+            }
+            var data = await res.json();
+            if (data.text) {
+                sessionInput.value = data.text;
+                voiceStatus.textContent = 'Spraak herkend. Wordt verstuurd...';
+                setTimeout(() => sendSessionMessage(), 300);
+            } else {
+                voiceStatus.textContent = 'Geen spraak herkend. Probeer opnieuw.';
+            }
+        } catch (err) {
+            voiceStatus.textContent = 'STT fout: ' + err.message;
+            showStatus('Spraakherkenning fout: ' + err.message, 'error');
+        }
+    }
+
+    // ── Unified mic button click handler ──
+    micBtn.addEventListener('click', async () => {
+        if (isRecording) {
+            // Stop recording
+            if (currentSttProvider === 'browser') {
+                stopBrowserRecognition();
+            } else {
+                stopMediaRecording();
+            }
+            return;
+        }
+
+        // Check mic permission first
+        var hasPermission = await ensureMicPermission();
+        if (!hasPermission) return;
+
+        // Stop any playing audio first so mic doesn't pick up TTS
+        sharedAudio.pause();
+        speechSynthesis.cancel();
+        audioQueue.length = 0;
+        isPlaying = false;
+
+        if (currentSttProvider === 'browser') {
+            startBrowserRecognition();
+        } else {
+            startMediaRecording();
         }
     });
 
@@ -4166,6 +4285,22 @@
                 tavilyKeyStatus.className = 'setup-status';
             }
 
+            // Load STT provider
+            currentSttProvider = data.stt_provider || 'browser';
+            document.querySelectorAll('.stt-radio').forEach(r => {
+                r.classList.toggle('selected', r.dataset.stt === currentSttProvider);
+            });
+            _updateSttConfigArea();
+            // Update STT key if present
+            const sttKeyInput = document.getElementById('setupOpenAiSttKey');
+            if (sttKeyInput && data.openai_stt_key_masked) {
+                sttKeyInput.placeholder = data.openai_stt_key_masked;
+            }
+            // Update STT provider label in voice controls
+            const sttLabels = { browser: '🎤 Browser spraakherkenning', openai_whisper: '🎤 OpenAI Whisper', local_whisper: '🎤 Lokaal Whisper' };
+            const sttLabel = document.getElementById('sttProviderLabel');
+            if (sttLabel) sttLabel.textContent = sttLabels[currentSttProvider] || sttLabels.browser;
+
             // Update inline key fields after provider config is rendered
             _updateInlineKeyStatus();
 
@@ -4212,6 +4347,46 @@
         });
     });
 
+    // STT provider radio click
+    let currentSttProvider = 'browser';
+    document.querySelectorAll('.stt-radio').forEach(radio => {
+        radio.addEventListener('click', () => {
+            document.querySelectorAll('.stt-radio').forEach(r => r.classList.remove('selected'));
+            radio.classList.add('selected');
+            currentSttProvider = radio.dataset.stt;
+            _updateSttConfigArea();
+        });
+    });
+
+    function _updateSttConfigArea() {
+        const area = document.getElementById('sttConfigArea');
+        const hint = document.getElementById('sttHint');
+        if (currentSttProvider === 'openai_whisper') {
+            area.innerHTML = '<div class="setup-field">' +
+                '<label for="setupOpenAiSttKey">OpenAI API Key (voor Whisper STT) <span class="setup-status" id="sttKeyStatus"></span></label>' +
+                '<input type="password" id="setupOpenAiSttKey" placeholder="sk-...">' +
+                '<div class="field-hint">Aparte key voor spraakherkenning. Verkrijgbaar via <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--primary)">platform.openai.com</a></div>' +
+                '</div>';
+            hint.textContent = 'OpenAI Whisper: uitstekende Nederlandse spraakherkenning via cloud API (~$0.006/min).';
+        } else if (currentSttProvider === 'local_whisper') {
+            area.innerHTML = '<div class="field-hint" id="localWhisperStatus" style="margin-top:8px">⏳ Controle of faster-whisper geïnstalleerd is...</div>';
+            hint.textContent = 'Lokaal Whisper: draait op je eigen machine. Geen API key nodig, wel meer geheugen (~3GB).';
+            // Check status
+            fetch(API + '/api/stt/status').then(r => r.json()).then(data => {
+                var el = document.getElementById('localWhisperStatus');
+                if (el) el.innerHTML = data.local_whisper_available
+                    ? '<span style="color:var(--success)">✅ faster-whisper is geïnstalleerd en beschikbaar</span>'
+                    : '<span style="color:var(--danger)">❌ faster-whisper is niet geïnstalleerd. Installeer met: <code>pip install faster-whisper</code></span>';
+            }).catch(function() {
+                var el = document.getElementById('localWhisperStatus');
+                if (el) el.textContent = '⚠️ Kon status niet controleren';
+            });
+        } else {
+            area.innerHTML = '';
+            hint.textContent = 'Browser Speech API: gratis, werkt in Chrome en Edge. Streaming herkenning.';
+        }
+    }
+
     // Unified model search filter
     document.getElementById('modelSearchInput').addEventListener('input', () => {
         if (currentProvider === 'ollama' && (PROVIDER_MODELS.ollama || []).length === 0) return;
@@ -4245,6 +4420,10 @@
         // Tavily key
         const tavilyKey = document.getElementById('setupTavilyKey').value.trim();
         if (tavilyKey) payload.tavily_api_key = tavilyKey;
+        // STT settings
+        payload.stt_provider = currentSttProvider;
+        const sttKey = document.getElementById('setupOpenAiSttKey');
+        if (sttKey && sttKey.value.trim()) payload.openai_stt_key = sttKey.value.trim();
         // User profile
         payload.user_name = document.getElementById('setupUserName').value.trim();
         payload.user_education = document.getElementById('setupEducation').value.trim();

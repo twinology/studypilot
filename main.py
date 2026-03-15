@@ -1521,6 +1521,111 @@ async def text_to_speech(req: TTSRequest):
         raise HTTPException(500, f"TTS fout: {error_msg}")
 
 
+# ── STT (Speech-to-Text) endpoints ───────────────────────────────────
+
+_local_whisper_model = None
+_local_whisper_lock = None
+
+
+def _get_local_whisper_model():
+    """Lazy-load faster-whisper model (singleton)."""
+    global _local_whisper_model, _local_whisper_lock
+    import threading
+    if _local_whisper_lock is None:
+        _local_whisper_lock = threading.Lock()
+    with _local_whisper_lock:
+        if _local_whisper_model is None:
+            from faster_whisper import WhisperModel
+            model_size = getattr(config, "LOCAL_WHISPER_MODEL", "large-v3")
+            device = getattr(config, "LOCAL_WHISPER_DEVICE", "cpu")
+            compute_type = getattr(config, "LOCAL_WHISPER_COMPUTE_TYPE", "int8")
+            logger.info(f"Lokaal Whisper model laden: {model_size} ({device}/{compute_type})...")
+            _local_whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
+            logger.info(f"Lokaal Whisper model geladen: {model_size}")
+        return _local_whisper_model
+
+
+@app.get("/api/stt/status")
+async def stt_status():
+    """Check availability of STT providers."""
+    settings = load_settings()
+    local_available = False
+    try:
+        import faster_whisper  # noqa: F401
+        local_available = True
+    except ImportError:
+        pass
+    openai_stt_key = settings.get("openai_stt_key", "")
+    return {
+        "local_whisper_available": local_available,
+        "openai_whisper_available": bool(openai_stt_key),
+        "current": settings.get("stt_provider", "browser"),
+    }
+
+
+@app.post("/api/stt")
+async def speech_to_text(audio: UploadFile = File(...)):
+    """Transcribe audio using configured STT provider (OpenAI Whisper or local Whisper)."""
+    settings = load_settings()
+    stt_provider = settings.get("stt_provider", "browser")
+
+    if stt_provider == "browser":
+        raise HTTPException(400, "Browser STT wordt client-side afgehandeld.")
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(400, "Geen audio ontvangen.")
+
+    if stt_provider == "openai_whisper":
+        api_key = settings.get("openai_stt_key", "")
+        if not api_key:
+            raise HTTPException(400, "Geen OpenAI STT key geconfigureerd. Ga naar Setup.")
+        try:
+            import openai
+            import io
+            client = openai.OpenAI(api_key=api_key)
+            language = getattr(config, "WHISPER_LANGUAGE", "nl")
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = "recording.webm"
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language=language,
+            )
+            text = transcription.text.strip()
+            logger.info(f"OpenAI Whisper STT: '{text[:80]}...' ({len(audio_bytes)} bytes audio)")
+            return {"text": text}
+        except Exception as e:
+            logger.error(f"OpenAI Whisper STT fout: {e}")
+            raise HTTPException(500, f"Whisper transcriptie mislukt: {str(e)}")
+
+    elif stt_provider == "local_whisper":
+        try:
+            import io
+            import tempfile
+            model = _get_local_whisper_model()
+            language = getattr(config, "WHISPER_LANGUAGE", "nl")
+            # Write to temp file (faster-whisper needs file path)
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_path = tmp.name
+            try:
+                segments, info = model.transcribe(tmp_path, language=language)
+                text = " ".join(seg.text.strip() for seg in segments).strip()
+            finally:
+                import os
+                os.unlink(tmp_path)
+            logger.info(f"Lokaal Whisper STT: '{text[:80]}...' ({len(audio_bytes)} bytes audio)")
+            return {"text": text}
+        except ImportError:
+            raise HTTPException(500, "faster-whisper is niet geïnstalleerd. Installeer met: pip install faster-whisper")
+        except Exception as e:
+            logger.error(f"Lokaal Whisper STT fout: {e}")
+            raise HTTPException(500, f"Lokale Whisper transcriptie mislukt: {str(e)}")
+
+    raise HTTPException(400, f"Onbekende STT provider: {stt_provider}")
+
+
 # ── Logs endpoint ────────────────────────────────────────────────────
 
 
@@ -2106,6 +2211,8 @@ class SettingsRequest(BaseModel):
     user_name: str = ""
     user_education: str = ""
     user_start_year: str = ""
+    stt_provider: str = ""
+    openai_stt_key: str = ""
 
 
 @app.get("/api/settings")
@@ -2138,6 +2245,9 @@ async def get_settings():
         "openrouter_api_key_masked": masked_or,
         "tavily_api_key_set": bool(s.get("tavily_api_key", "")),
         "tavily_api_key_masked": (lambda k: (k[:4] + "..." + k[-4:]) if len(k) > 8 else ("***" if k else ""))(s.get("tavily_api_key", "")),
+        "stt_provider": s.get("stt_provider", "browser"),
+        "openai_stt_key_set": bool(s.get("openai_stt_key", "")),
+        "openai_stt_key_masked": (lambda k: (k[:4] + "..." + k[-4:]) if len(k) > 8 else ("***" if k else ""))(s.get("openai_stt_key", "")),
         "user_name": s.get("user_name", ""),
         "user_education": s.get("user_education", ""),
         "user_start_year": s.get("user_start_year", ""),
@@ -2161,6 +2271,11 @@ async def update_settings(req: SettingsRequest):
         new_settings["openrouter_api_key"] = req.openrouter_api_key
     if req.tavily_api_key:
         new_settings["tavily_api_key"] = req.tavily_api_key
+    # STT settings
+    if req.stt_provider:
+        new_settings["stt_provider"] = req.stt_provider
+    if req.openai_stt_key:
+        new_settings["openai_stt_key"] = req.openai_stt_key
     # User profile (always save, even if empty to allow clearing)
     new_settings["user_name"] = req.user_name.strip()
     new_settings["user_education"] = req.user_education.strip()
