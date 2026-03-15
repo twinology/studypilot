@@ -2743,32 +2743,6 @@
 
                 // Persist delta to backend (fire and forget)
                 _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: chunks, cost: costUsd, calls: 1 });
-
-                const usageDiv = document.createElement('div');
-                usageDiv.className = 'token-usage';
-                usageDiv.innerHTML = `
-                    <span class="tu-item" title="Tokens verstuurd (context + systeemprompt + chatgeschiedenis)">
-                        <span class="tu-label">In:</span>
-                        <span class="tu-value">${inTok.toLocaleString('nl-NL')}</span>
-                    </span>
-                    <span class="tu-item" title="Tokens gegenereerd (het antwoord)">
-                        <span class="tu-label">Uit:</span>
-                        <span class="tu-value">${outTok.toLocaleString('nl-NL')}</span>
-                    </span>
-                    <span class="tu-item" title="Totaal tokens (in + uit)">
-                        <span class="tu-label">Totaal:</span>
-                        <span class="tu-value">${totalTokens.toLocaleString('nl-NL')}</span>
-                    </span>
-                    <span class="tu-item" title="Aantal contextfragmenten opgehaald uit de kennisbank">
-                        <span class="tu-label">Chunks:</span>
-                        <span class="tu-value">${chunks}</span>
-                    </span>
-                    <span class="tu-item" title="Geschatte kosten in euro">
-                        <span class="tu-label">Kosten:</span>
-                        <span class="tu-value">€${costEur.toFixed(4).replace('.', ',')}</span>
-                    </span>
-                `;
-                div.appendChild(usageDiv);
             }
         } else {
             div.textContent = text;
