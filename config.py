@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # ── Version ─────────────────────────────────────────────────────────
-VERSION = "2.15.8"
+VERSION = "2.15.9"
 VERSION_NAME = "Multimodal RAG Edition"
 
 BASE_DIR = Path(__file__).parent

@@ -4791,6 +4791,36 @@
                 '<div class="field-hint">Aparte key voor spraakherkenning. Verkrijgbaar via <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--primary)">platform.openai.com</a></div>' +
                 '</div>';
             hint.textContent = 'OpenAI Whisper: uitstekende Nederlandse spraakherkenning via cloud API (~$0.006/min).';
+            // Load key status from settings, then verify connection
+            fetch(API + '/api/settings').then(r => r.json()).then(function(data) {
+                var sttKeyInput = document.getElementById('setupOpenAiSttKey');
+                var sttKeyStatus = document.getElementById('sttKeyStatus');
+                if (sttKeyInput && data.openai_stt_key_set) {
+                    sttKeyInput.placeholder = data.openai_stt_key_masked || 'sk-...';
+                    if (sttKeyStatus) {
+                        sttKeyStatus.textContent = '⏳ Controleren...';
+                        sttKeyStatus.className = 'setup-status';
+                        sttKeyStatus.style.color = '#888';
+                    }
+                    // Verify the key actually works
+                    fetch(API + '/api/settings/verify').then(r2 => r2.json()).then(function(vData) {
+                        var el = document.getElementById('sttKeyStatus');
+                        if (!el) return;
+                        var sttResult = vData.openai_stt || {};
+                        if (sttResult.status === 'ok') {
+                            el.textContent = '✅ Verbonden';
+                            el.className = 'setup-status ok';
+                        } else if (sttResult.status === 'error') {
+                            el.textContent = '❌ ' + sttResult.message;
+                            el.className = 'setup-status missing';
+                        } else {
+                            el.textContent = '✓ Ingesteld';
+                            el.className = 'setup-status ok';
+                        }
+                        el.style.color = '';
+                    }).catch(function() {});
+                }
+            }).catch(function() {});
         } else if (currentSttProvider === 'local_whisper') {
             area.innerHTML = '<div id="localWhisperStatus" style="margin-top:8px">⏳ Hardware detecteren...</div>';
             hint.textContent = 'Lokaal Whisper: draait op je eigen machine. Geen API key nodig.';
