@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # ── Version ─────────────────────────────────────────────────────────
-VERSION = "2.15.3"
+VERSION = "2.15.4"
 VERSION_NAME = "Multimodal RAG Edition"
 
 BASE_DIR = Path(__file__).parent
@@ -37,8 +37,8 @@ MAX_IMAGES_IN_CONTEXT = 3       # Maximaal aantal afbeeldingen meegestuurd per q
 
 # STT settings (Speech-to-Text)
 LOCAL_WHISPER_MODEL = "large-v3"        # Model size for faster-whisper
-LOCAL_WHISPER_DEVICE = "cpu"            # "cpu" or "cuda"
-LOCAL_WHISPER_COMPUTE_TYPE = "int8"     # "int8" for CPU, "float16" for GPU
+LOCAL_WHISPER_DEVICE = "cuda"            # "cpu" or "cuda"
+LOCAL_WHISPER_COMPUTE_TYPE = "float16"   # "int8" for CPU, "float16" for GPU
 WHISPER_LANGUAGE = "nl"                 # Default language for transcription
 
 # Token stats persistence

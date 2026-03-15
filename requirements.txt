@@ -24,8 +24,8 @@ fpdf2>=2.7.0
 # TTS
 elevenlabs>=1.0.0
 
-# STT (optional — for local Whisper)
-# faster-whisper>=1.0.0
+# STT (local Whisper)
+faster-whisper>=1.0.0
 
 # Telegram
 python-telegram-bot>=21.0
