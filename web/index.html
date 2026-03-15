@@ -3930,7 +3930,7 @@
                 : 'Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model.<br>Of geef een onderwerp in, ik help je graag!';
             const firstMsg = chatMessages.querySelector('.message.bot:first-child');
             if (firstMsg && chatMessages.children.length === 1) {
-                firstMsg.textContent = welcomeGreeting;
+                firstMsg.innerHTML = welcomeGreeting;
             }
 
             // Update model hint in nav
