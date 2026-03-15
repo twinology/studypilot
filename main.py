@@ -1521,7 +1521,7 @@ class QuizGenerateRequest(BaseModel):
     subject: str
     quiz_type: str  # "mc3", "mc4", "open"
     num_questions: int = 5
-    difficulty: str = "gemiddeld"  # "basis", "gemiddeld", "gevorderd"
+    difficulty: str = "basis"  # "basis", "gevorderd", "expert"
 
 
 class QuizEvaluateRequest(BaseModel):
@@ -1577,9 +1577,9 @@ async def generate_quiz(req: QuizGenerateRequest):
 
     difficulty_instruction = {
         "basis": "Stel eenvoudige vragen die basisbegrippen en feitenkennis toetsen. Geschikt voor beginners.",
-        "gemiddeld": "Stel vragen van gemiddeld niveau die zowel kennis als begrip en toepassing toetsen.",
-        "gevorderd": "Stel uitdagende vragen die diepgaand begrip, analyse en kritisch denken vereisen. Geschikt voor gevorderde studenten.",
-    }.get(req.difficulty, "Stel vragen van gemiddeld niveau die zowel kennis als begrip en toepassing toetsen.")
+        "gevorderd": "Stel vragen van gevorderd niveau die zowel kennis als begrip, toepassing en analyse toetsen.",
+        "expert": "Stel uitdagende vragen die diepgaand begrip, analyse en kritisch denken vereisen. Geschikt voor experts.",
+    }.get(req.difficulty, "Stel eenvoudige vragen die basisbegrippen en feitenkennis toetsen.")
 
     system = f"""Je bent een toetsgenerator voor studenten. Genereer precies {req.num_questions} {quiz_type_label} over het onderwerp: "{req.subject}".
 
@@ -1828,7 +1828,7 @@ async def save_quiz_result(request: Request):
 
     type_labels = {"mc3": "MC (3 opties)", "mc4": "MC (4 opties)", "open": "Open vragen"}
     type_label = type_labels.get(quiz_type, quiz_type)
-    diff_labels = {"basis": "Basis", "gemiddeld": "Gemiddeld", "gevorderd": "Gevorderd"}
+    diff_labels = {"basis": "Basis", "gevorderd": "Gevorderd", "expert": "Expert"}
     diff_label = diff_labels.get(difficulty, difficulty)
 
     # Build messages array for the conversation

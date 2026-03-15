@@ -1626,17 +1626,17 @@
                     <div class="quiz-field">
                         <label>Moeilijkheidsgraad</label>
                         <div class="quiz-type-options" id="quizDifficultyOptions">
-                            <label class="quiz-type-option" data-type="basis">
-                                <input type="radio" name="quizDifficulty" value="basis">
+                            <label class="quiz-type-option selected" data-type="basis">
+                                <input type="radio" name="quizDifficulty" value="basis" checked>
                                 <span class="qt-label">🟢 Basis</span>
-                            </label>
-                            <label class="quiz-type-option selected" data-type="gemiddeld">
-                                <input type="radio" name="quizDifficulty" value="gemiddeld" checked>
-                                <span class="qt-label">🟡 Gemiddeld</span>
                             </label>
                             <label class="quiz-type-option" data-type="gevorderd">
                                 <input type="radio" name="quizDifficulty" value="gevorderd">
-                                <span class="qt-label">🔴 Gevorderd</span>
+                                <span class="qt-label">🟠 Gevorderd</span>
+                            </label>
+                            <label class="quiz-type-option" data-type="expert">
+                                <input type="radio" name="quizDifficulty" value="expert">
+                                <span class="qt-label">🔴 Expert</span>
                             </label>
                         </div>
                     </div>
@@ -4388,7 +4388,7 @@
     // State
     let _quizQuestions = [];
     let _quizType = 'mc4';
-    let _quizDifficulty = 'gemiddeld';
+    let _quizDifficulty = 'basis';
     let _quizSubject = '';
 
     const quizSetupView = document.getElementById('quizSetupView');
@@ -4479,7 +4479,7 @@
 
     function renderQuizQuestions() {
         const typeLabels = { mc3: 'MC (3 opties)', mc4: 'MC (4 opties)', open: 'Open vragen' };
-        const diffLabels = { basis: '🟢 Basis', gemiddeld: '🟡 Gemiddeld', gevorderd: '🔴 Gevorderd' };
+        const diffLabels = { basis: '🟢 Basis', gevorderd: '🟠 Gevorderd', expert: '🔴 Expert' };
         let html = `<div class="quiz-questions-card">
             <h2>Toets: ${escapeHtml(_quizSubject)}</h2>
             <div class="quiz-subtitle">${typeLabels[_quizType] || _quizType} &mdash; ${diffLabels[_quizDifficulty] || _quizDifficulty} &mdash; ${_quizQuestions.length} vragen</div>`;
@@ -4577,7 +4577,7 @@
 
     function renderQuizResults(data) {
         const typeLabels = { mc3: 'MC (3 opties)', mc4: 'MC (4 opties)', open: 'Open vragen' };
-        const diffLabels = { basis: '🟢 Basis', gemiddeld: '🟡 Gemiddeld', gevorderd: '🔴 Gevorderd' };
+        const diffLabels = { basis: '🟢 Basis', gevorderd: '🟠 Gevorderd', expert: '🔴 Expert' };
         let html = `<div class="quiz-results-card">
             <h2>Resultaten: ${escapeHtml(_quizSubject)}</h2>
             <div class="quiz-subtitle">${typeLabels[_quizType] || _quizType} &mdash; ${diffLabels[_quizDifficulty] || _quizDifficulty} &mdash; ${data.total} vragen</div>
