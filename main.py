@@ -1569,7 +1569,7 @@ async def generate_quiz(req: QuizGenerateRequest):
     if rag_enabled:
         try:
             from rag.vector_store import search as rag_search
-            context_items = rag_search(req.subject, n_results=10)
+            context_items = rag_search(req.subject, top_k=10)
             if context_items:
                 rag_context = "\n\n---\n\n".join(
                     f"[Bron: {item['source']}]\n{item['text']}" for item in context_items
