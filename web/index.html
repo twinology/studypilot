@@ -4735,16 +4735,20 @@
         });
     });
 
-    // STT provider radio click
+    // STT provider radio click — use event delegation for robustness
     let currentSttProvider = 'browser';
-    document.querySelectorAll('.stt-radio').forEach(radio => {
-        radio.addEventListener('click', () => {
-            document.querySelectorAll('.stt-radio').forEach(r => r.classList.remove('selected'));
+    var sttRadiosContainer = document.getElementById('sttRadios');
+    if (sttRadiosContainer) {
+        sttRadiosContainer.addEventListener('click', function(e) {
+            var radio = e.target.closest('.stt-radio');
+            if (!radio) return;
+            e.stopPropagation(); // Prevent AI provider handler from firing
+            document.querySelectorAll('.stt-radio').forEach(function(r) { r.classList.remove('selected'); });
             radio.classList.add('selected');
             currentSttProvider = radio.dataset.stt;
             _updateSttConfigArea();
         });
-    });
+    }
 
     function _updateSttConfigArea() {
         const area = document.getElementById('sttConfigArea');
