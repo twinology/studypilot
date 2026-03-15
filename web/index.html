@@ -3216,9 +3216,23 @@
 
             if (document.getElementById('ttsToggle').checked) {
                 speak(data.reply);
+                // Auto-restart mic happens in playNext() when audio queue empties
+            } else if (_voiceInitiated) {
+                // TTS is off, but voice was used — auto-restart mic immediately
+                _voiceInitiated = false;
+                setTimeout(async () => {
+                    var hasPermission = await ensureMicPermission();
+                    if (!hasPermission) return;
+                    if (currentSttProvider === 'browser') {
+                        startBrowserRecognition();
+                    } else {
+                        startMediaRecording();
+                    }
+                }, 500);
             }
         } catch (err) {
             addMessage(sessionMessages, `Fout: ${err.message}`, 'bot');
+            _voiceInitiated = false;
         }
         clearInterval(thinkTimer);
         thinkingEl.remove();
@@ -3298,6 +3312,7 @@
                 recognition.stop();
                 micBtn.classList.remove('recording');
                 micBtn.classList.add('inactive');
+                _voiceInitiated = true;
                 setTimeout(() => sendSessionMessage(), 300);
             }
         };
@@ -3466,6 +3481,7 @@
             if (data.text) {
                 sessionInput.value = data.text;
                 voiceStatus.textContent = 'Spraak herkend. Wordt verstuurd...';
+                _voiceInitiated = true;
                 setTimeout(() => sendSessionMessage(), 300);
             } else {
                 voiceStatus.textContent = 'Geen spraak herkend. Probeer opnieuw.';
@@ -3510,6 +3526,7 @@
     let isPlaying = false;
     let currentVoice = '';  // 'male' or 'female', set by session
     let currentEmotion = '';  // emotie van het personage, set by session
+    let _voiceInitiated = false;  // Track if message was initiated via voice (for auto-restart mic)
 
     // Shared Audio element — reuses a single element so the browser
     // remembers the user-gesture unlock across plays.
@@ -3524,7 +3541,23 @@
     }
 
     async function playNext() {
-        if (audioQueue.length === 0) { isPlaying = false; return; }
+        if (audioQueue.length === 0) {
+            isPlaying = false;
+            // Auto-restart mic after TTS finishes if message was voice-initiated
+            if (_voiceInitiated && document.getElementById('ttsToggle').checked) {
+                _voiceInitiated = false;
+                setTimeout(async () => {
+                    var hasPermission = await ensureMicPermission();
+                    if (!hasPermission) return;
+                    if (currentSttProvider === 'browser') {
+                        startBrowserRecognition();
+                    } else {
+                        startMediaRecording();
+                    }
+                }, 500);
+            }
+            return;
+        }
         isPlaying = true;
         const text = audioQueue.shift();
 
@@ -3594,6 +3627,21 @@
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'nl-NL';
+            utterance.onend = () => {
+                // Auto-restart mic after browser TTS finishes
+                if (_voiceInitiated && !isPlaying) {
+                    _voiceInitiated = false;
+                    setTimeout(async () => {
+                        var hasPermission = await ensureMicPermission();
+                        if (!hasPermission) return;
+                        if (currentSttProvider === 'browser') {
+                            startBrowserRecognition();
+                        } else {
+                            startMediaRecording();
+                        }
+                    }, 500);
+                }
+            };
             speechSynthesis.speak(utterance);
         }
     }
