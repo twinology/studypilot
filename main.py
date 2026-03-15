@@ -2639,6 +2639,17 @@ async def update_settings(req: SettingsRequest):
     new_settings["user_start_year"] = req.user_start_year.strip()
     save_settings(new_settings)
     logger.info(f"Instellingen bijgewerkt: provider={req.provider}, model={req.model}")
+
+    # Preload Whisper model in background if local_whisper is selected
+    if new_settings.get("stt_provider") == "local_whisper":
+        whisper_model_name = new_settings.get("whisper_model", getattr(config, "LOCAL_WHISPER_MODEL", "large-v3"))
+        # Only load if not already loaded (or different model)
+        if _local_whisper_model is None or _local_whisper_model_name != whisper_model_name:
+            import threading
+            logger.info(f"Whisper model voorladen na settings-opslag: {whisper_model_name}...")
+            thread = threading.Thread(target=_get_local_whisper_model, args=(whisper_model_name,), daemon=True)
+            thread.start()
+
     return {"status": "ok"}
 
 
