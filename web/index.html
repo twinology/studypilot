@@ -235,6 +235,61 @@
         .crawl-modal-overlay.active {
             display: flex;
         }
+        /* Custom confirm dialog */
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .confirm-overlay.active { display: flex; }
+        .confirm-box {
+            background: var(--bg);
+            border-radius: 14px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            max-width: 400px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .confirm-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+            font-size: 16px;
+        }
+        .confirm-header img { width: 28px; height: 28px; border-radius: 6px; }
+        .confirm-body { padding: 20px; font-size: 14px; line-height: 1.6; }
+        .confirm-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+        }
+        .confirm-footer button {
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text);
+        }
+        .confirm-footer .confirm-ok {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .confirm-footer .confirm-ok:hover { opacity: 0.9; }
+        .confirm-footer .confirm-cancel:hover { background: var(--border); }
         .crawl-modal {
             background: var(--bg);
             border-radius: 16px;
@@ -1834,6 +1889,29 @@
     <script>
     const API = '';
 
+    // ── Custom confirm dialog ──────────
+    function studyConfirm(message) {
+        return new Promise(function(resolve) {
+            var overlay = document.getElementById('confirmOverlay');
+            document.getElementById('confirmBody').textContent = message;
+            overlay.classList.add('active');
+            var okBtn = document.getElementById('confirmOk');
+            var cancelBtn = document.getElementById('confirmCancel');
+            function cleanup() {
+                overlay.classList.remove('active');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onOverlay);
+            }
+            function onOk() { cleanup(); resolve(true); }
+            function onCancel() { cleanup(); resolve(false); }
+            function onOverlay(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            overlay.addEventListener('click', onOverlay);
+        });
+    }
+
     // ── Exchange rate & token stats persistence ──────────
     window._eurRate = 0.92; // fallback
     window._totalTokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
@@ -2226,7 +2304,7 @@
 
     async function deleteDoc(name, displayName) {
         const label = displayName || name;
-        if (!confirm(`Weet je zeker dat je "${label}" wilt verwijderen?`)) return;
+        if (!(await studyConfirm(`Weet je zeker dat je "${label}" wilt verwijderen?`))) return;
         await fetch(`${API}/api/documents/${encodeURIComponent(name)}`, { method: 'DELETE' });
         loadDocuments();
         showStatus(`${label} verwijderd`, 'success');
@@ -2559,7 +2637,7 @@
     });
 
     document.getElementById('reindexBtn').addEventListener('click', async () => {
-        if (!confirm('Alle documenten opnieuw indexeren? Dit kan even duren.')) return;
+        if (!(await studyConfirm('Alle documenten opnieuw indexeren? Dit kan even duren.'))) return;
         const btn = document.getElementById('reindexBtn');
         btn.disabled = true;
         btn.textContent = '⟳ Bezig...';
@@ -3458,7 +3536,7 @@
     });
 
     async function deleteConversation(convId) {
-        if (!confirm('Weet je zeker dat je dit rapport wilt verwijderen?')) return;
+        if (!(await studyConfirm('Weet je zeker dat je dit rapport wilt verwijderen?'))) return;
         try {
             await fetch(`${API}/api/conversations/${convId}`, { method: 'DELETE' });
             loadConversations();
@@ -4120,6 +4198,19 @@
     loadSettings();
     loadInfo();
     </script>
+    <!-- Custom confirm dialog -->
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-box">
+            <div class="confirm-header">
+                <img src="/images/logo.png" alt="StudyPilot"> StudyPilot
+            </div>
+            <div class="confirm-body" id="confirmBody"></div>
+            <div class="confirm-footer">
+                <button class="confirm-cancel" id="confirmCancel">Annuleren</button>
+                <button class="confirm-ok" id="confirmOk">OK</button>
+            </div>
+        </div>
+    </div>
     <footer class="copyright-footer">
         <span>Copyright &copy; 2026 twinology.ai</span>
         <span class="footer-version" id="footerVersion">v2.10.0 — Multimodal RAG Edition</span>
