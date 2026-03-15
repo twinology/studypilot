@@ -2589,7 +2589,12 @@
 
             urlInput.value = '';
             loadDocuments();
-            showStatus(`Webpagina geïndexeerd: ${data.filename} (${data.chunks} chunks, ${data.characters} tekens)`, 'success', 8000);
+            if (data.images_processing) {
+                showStatus(`✓ Webpagina geïndexeerd: ${data.filename} (${data.chunks} chunks). Afbeeldingen worden op achtergrond verwerkt...`, 'success', 15000);
+                window._startImagePollTimer(data.filename);
+            } else {
+                showStatus(`Webpagina geïndexeerd: ${data.filename} (${data.chunks} chunks, ${data.characters} tekens)`, 'success', 8000);
+            }
         } catch (err) {
             overlay.classList.remove('active');
             steps.children[2].style.opacity = '1';
@@ -2789,11 +2794,20 @@
 
             crawlInput.value = '';
             loadDocuments();
-            showStatus(
-                `Website gecrawld: ${data.pages_indexed}/${data.pages_found} pagina's geïndexeerd (${data.total_chunks} chunks)` +
-                (data.errors.length ? ` — ${data.errors.length} fouten` : ''),
-                'success', 10000
-            );
+            if (data.images_processing) {
+                showStatus(
+                    `✓ Website gecrawld: ${data.pages_indexed}/${data.pages_found} pagina's (${data.total_chunks} chunks). Afbeeldingen worden op achtergrond verwerkt...` +
+                    (data.errors.length ? ` — ${data.errors.length} fouten` : ''),
+                    'success', 15000
+                );
+                window._startImagePollTimer(data.filename);
+            } else {
+                showStatus(
+                    `Website gecrawld: ${data.pages_indexed}/${data.pages_found} pagina's geïndexeerd (${data.total_chunks} chunks)` +
+                    (data.errors.length ? ` — ${data.errors.length} fouten` : ''),
+                    'success', 10000
+                );
+            }
 
             // Show crawl overview modal
             _showCrawlOverview(data);

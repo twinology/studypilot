@@ -337,6 +337,133 @@ def _process_images_background(dest: Path, filename: str):
         logger.warning(f"Image extractie fout op achtergrond: {e}")
 
 
+def _process_url_images_background(html_content: str, url: str, filename: str):
+    """Process images from a URL in the background (runs in a thread)."""
+    try:
+        from rag.image_extractor import extract_images_from_html
+        from pathlib import Path as _Path
+        stem = _Path(filename).stem
+        output_dir = config.IMAGES_DIR / stem
+        images = extract_images_from_html(html_content, url, output_dir)
+        if not images:
+            _image_progress[filename] = {"total": 0, "done": 0, "status": "done", "chunks": 0}
+            logger.info(f"Geen afbeeldingen gevonden op URL {url}")
+            return
+
+        total = len(images)
+        _image_progress[filename] = {"total": total, "done": 0, "status": "processing", "chunks": 0}
+
+        from rag.image_describer import describe_single_image
+        all_chunks = []
+        all_metas = []
+        vision_usage_total = {"input_tokens": 0, "output_tokens": 0}
+        for i, img in enumerate(images):
+            try:
+                chunk, meta, usage = describe_single_image(img, filename)
+                if chunk:
+                    all_chunks.append(chunk)
+                    all_metas.append(meta)
+                if usage:
+                    vision_usage_total["input_tokens"] += usage.get("input_tokens", 0)
+                    vision_usage_total["output_tokens"] += usage.get("output_tokens", 0)
+            except Exception as e:
+                logger.warning(f"URL-afbeelding {getattr(img, 'file_path', img)} overgeslagen: {e}")
+            _image_progress[filename]["done"] = i + 1
+
+        if all_chunks:
+            num_image_chunks = add_document(all_chunks, filename, extra_metadatas=all_metas)
+            _image_progress[filename]["chunks"] = num_image_chunks
+            logger.info(f"✓ URL-afbeeldingen verwerkt: {url} — {total} afbeeldingen, {num_image_chunks} chunks")
+        else:
+            logger.info(f"Geen afbeelding-chunks gegenereerd voor URL {url}")
+
+        if vision_usage_total["input_tokens"] > 0 or vision_usage_total["output_tokens"] > 0:
+            in_tok = vision_usage_total["input_tokens"]
+            out_tok = vision_usage_total["output_tokens"]
+            total_tok = in_tok + out_tok
+            cost_usd = in_tok * 3 / 1_000_000 + out_tok * 15 / 1_000_000
+            _persist_usage_delta(in_tok, out_tok, total_tok, 0, cost_usd)
+            logger.info(f"Vision tokens getracked: in={in_tok} out={out_tok} ({total} afbeeldingen)")
+
+        _image_progress[filename]["status"] = "done"
+    except Exception as e:
+        _image_progress[filename] = {"total": 0, "done": 0, "status": "error", "chunks": 0, "error": str(e)}
+        logger.warning(f"URL image extractie fout op achtergrond: {e}")
+
+
+def _process_crawl_images_background(page_urls: list, filename: str):
+    """Process images from multiple crawled page URLs in the background."""
+    try:
+        from rag.image_extractor import extract_images_from_html
+        from pathlib import Path as _Path
+        import urllib.request
+
+        stem = _Path(filename).stem
+        output_dir = config.IMAGES_DIR / stem
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+
+        # First pass: collect all images from all pages
+        all_images = []
+        for page_url in page_urls:
+            try:
+                req = urllib.request.Request(page_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    html = resp.read().decode("utf-8", errors="replace")
+                page_images = extract_images_from_html(html, page_url, output_dir)
+                all_images.extend(page_images)
+            except Exception as e:
+                logger.debug(f"Crawl image fetch overgeslagen ({page_url}): {e}")
+                continue
+
+        if not all_images:
+            _image_progress[filename] = {"total": 0, "done": 0, "status": "done", "chunks": 0}
+            logger.info(f"Geen afbeeldingen gevonden op gecrawlde pagina's")
+            return
+
+        total = len(all_images)
+        _image_progress[filename] = {"total": total, "done": 0, "status": "processing", "chunks": 0}
+
+        from rag.image_describer import describe_single_image
+        all_chunks = []
+        all_metas = []
+        vision_usage_total = {"input_tokens": 0, "output_tokens": 0}
+        for i, img in enumerate(all_images):
+            try:
+                chunk, meta, usage = describe_single_image(img, filename)
+                if chunk:
+                    all_chunks.append(chunk)
+                    all_metas.append(meta)
+                if usage:
+                    vision_usage_total["input_tokens"] += usage.get("input_tokens", 0)
+                    vision_usage_total["output_tokens"] += usage.get("output_tokens", 0)
+            except Exception as e:
+                logger.warning(f"Crawl-afbeelding overgeslagen: {e}")
+            _image_progress[filename]["done"] = i + 1
+
+        if all_chunks:
+            num_image_chunks = add_document(all_chunks, filename, extra_metadatas=all_metas)
+            _image_progress[filename]["chunks"] = num_image_chunks
+            logger.info(f"✓ Crawl-afbeeldingen verwerkt: {total} afbeeldingen, {num_image_chunks} chunks")
+        else:
+            logger.info(f"Geen afbeelding-chunks gegenereerd voor crawl")
+
+        if vision_usage_total["input_tokens"] > 0 or vision_usage_total["output_tokens"] > 0:
+            in_tok = vision_usage_total["input_tokens"]
+            out_tok = vision_usage_total["output_tokens"]
+            total_tok = in_tok + out_tok
+            cost_usd = in_tok * 3 / 1_000_000 + out_tok * 15 / 1_000_000
+            _persist_usage_delta(in_tok, out_tok, total_tok, 0, cost_usd)
+            logger.info(f"Vision tokens getracked: in={in_tok} out={out_tok} ({total} afbeeldingen)")
+
+        _image_progress[filename]["status"] = "done"
+    except Exception as e:
+        _image_progress[filename] = {"total": 0, "done": 0, "status": "error", "chunks": 0, "error": str(e)}
+        logger.warning(f"Crawl image extractie fout op achtergrond: {e}")
+
+
 @app.get("/api/upload/image-progress/{filename}")
 async def get_image_progress(filename: str):
     """Get progress of background image processing."""
@@ -495,18 +622,41 @@ async def upload_url(req: UrlUploadRequest):
     with open(dest, "w", encoding="utf-8") as f:
         f.write(html_content)
 
+    # Determine what to process based on index_mode
+    do_text = req.index_mode in ("all", "text")
+    do_images = req.index_mode in ("all", "images")
+
     # Process and index
     try:
-        text = load_document(dest)
-        if not text or not text.strip():
-            os.remove(dest)
-            raise HTTPException(400, "Kon geen tekst uit de webpagina extraheren.")
-        chunks = chunk_text(text)
-        num_chunks = add_document(chunks, filename)
-        logger.info(f"URL geïndexeerd: {url} -> {filename} ({len(text)} tekens, {num_chunks} chunks)")
+        num_chunks = 0
+        text = ""
+        if do_text:
+            text = load_document(dest)
+            if not text or not text.strip():
+                if not do_images:
+                    os.remove(dest)
+                    raise HTTPException(400, "Kon geen tekst uit de webpagina extraheren.")
+            else:
+                chunks = chunk_text(text)
+                num_chunks = add_document(chunks, filename)
+                logger.info(f"URL geïndexeerd: {url} -> {filename} ({len(text)} tekens, {num_chunks} chunks)")
+        else:
+            logger.info(f"URL geïndexeerd (alleen afbeeldingen): {url} -> {filename}")
+
+        # Schedule image processing in background thread
+        images_scheduled = False
+        if do_images and config.EXTRACT_IMAGES:
+            thread = threading.Thread(
+                target=_process_url_images_background,
+                args=(html_content, url, filename),
+                daemon=True,
+            )
+            thread.start()
+            images_scheduled = True
+            logger.info(f"Afbeelding-verwerking gestart op achtergrond voor URL {url}")
 
         # Save metadata
-        _save_doc_meta(filename, display_name=url, index_mode=req.index_mode if hasattr(req, 'index_mode') else "text")
+        _save_doc_meta(filename, display_name=url, index_mode=req.index_mode)
 
         return {
             "status": "ok",
@@ -514,6 +664,7 @@ async def upload_url(req: UrlUploadRequest):
             "url": url,
             "chunks": num_chunks,
             "characters": len(text),
+            "images_processing": images_scheduled,
         }
     except ValueError as e:
         if dest.exists():
@@ -804,17 +955,42 @@ async def crawl_website(req: CrawlWebsiteRequest):
         with open(dest, "w", encoding="utf-8") as f:
             f.write(combined_text)
 
+        do_text = req.index_mode in ("all", "text")
+        do_images = req.index_mode in ("all", "images")
+
         # Save metadata mapping filename -> original URL for display
-        _save_doc_meta(filename, display_name=url, index_mode=index_mode)
+        _save_doc_meta(filename, display_name=url, index_mode=req.index_mode)
 
-        text = load_document(dest)
-        if not text or not text.strip():
-            os.remove(dest)
-            raise HTTPException(400, "Kon geen tekst uit de gecrawlde pagina's extraheren.")
+        total_chunks = 0
+        total_chars = 0
 
-        chunks = chunk_text(text)
-        total_chunks = add_document(chunks, filename)
-        total_chars = len(text)
+        if do_text:
+            text = load_document(dest)
+            if not text or not text.strip():
+                if not do_images:
+                    os.remove(dest)
+                    raise HTTPException(400, "Kon geen tekst uit de gecrawlde pagina's extraheren.")
+            else:
+                chunks = chunk_text(text)
+                total_chunks = add_document(chunks, filename)
+                total_chars = len(text)
+        else:
+            logger.info(f"Website gecrawld (alleen afbeeldingen): {url}")
+
+        # Schedule image processing for each crawled page URL
+        images_scheduled = False
+        if do_images and config.EXTRACT_IMAGES:
+            # Collect all page HTML contents for image extraction
+            all_page_urls = [p.get("url", "") for p in results if p.get("url")]
+            if all_page_urls:
+                thread = threading.Thread(
+                    target=_process_crawl_images_background,
+                    args=(all_page_urls, filename),
+                    daemon=True,
+                )
+                thread.start()
+                images_scheduled = True
+                logger.info(f"Afbeelding-verwerking gestart op achtergrond voor crawl {url} ({len(all_page_urls)} pagina's)")
 
         logger.info(f"Website gecrawld: {url} -> {filename} ({len(page_details)} pagina's, {total_chunks} chunks, {total_chars} tekens)")
 
@@ -833,6 +1009,7 @@ async def crawl_website(req: CrawlWebsiteRequest):
         "total_characters": total_chars,
         "pages": page_details,
         "errors": errors,
+        "images_processing": images_scheduled,
     }
 
 

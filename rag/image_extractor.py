@@ -157,6 +157,97 @@ def extract_images_from_docx(file_path: Path, output_dir: Path) -> List[Extracte
     return results
 
 
+def extract_images_from_html(html_content: str, base_url: str, output_dir: Path) -> List[ExtractedImage]:
+    """Extract images from HTML content by downloading <img> src URLs."""
+    from urllib.parse import urljoin, urlparse
+    import urllib.request
+    import hashlib
+
+    results = []
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Parse HTML to find img tags
+    from html.parser import HTMLParser
+
+    img_urls = []
+
+    class ImgParser(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            if tag == "img":
+                attrs_dict = dict(attrs)
+                src = attrs_dict.get("src", "")
+                if src:
+                    img_urls.append(src)
+
+    try:
+        ImgParser().feed(html_content)
+    except Exception as e:
+        logger.warning(f"HTML parsing fout bij image extractie: {e}")
+        return results
+
+    # Deduplicate
+    seen = set()
+    unique_urls = []
+    for src in img_urls:
+        full_url = urljoin(base_url, src)
+        if full_url not in seen:
+            seen.add(full_url)
+            unique_urls.append(full_url)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+
+    img_idx = 0
+    for img_url in unique_urls:
+        try:
+            # Skip data URIs, SVGs, tiny icons
+            parsed = urlparse(img_url)
+            if not parsed.scheme.startswith("http"):
+                continue
+            lower_path = parsed.path.lower()
+            if lower_path.endswith(".svg") or lower_path.endswith(".gif") or lower_path.endswith(".ico"):
+                continue
+
+            req = urllib.request.Request(img_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                image_bytes = resp.read()
+
+            img = Image.open(io.BytesIO(image_bytes))
+
+            if img.mode not in ("RGB", "RGBA"):
+                img = img.convert("RGB")
+
+            w, h = img.size
+            if w < config.IMAGE_MIN_SIZE or h < config.IMAGE_MIN_SIZE:
+                continue
+
+            img = _resize_image(img)
+            img_idx += 1
+
+            # Use hash of URL for unique filename
+            url_hash = hashlib.md5(img_url.encode()).hexdigest()[:8]
+            filename = f"web_img{img_idx}_{url_hash}.png"
+            save_path = output_dir / filename
+            img.save(str(save_path), "PNG", optimize=True)
+
+            rel_path = str(save_path.relative_to(config.BASE_DIR)).replace("\\", "/")
+
+            results.append(ExtractedImage(
+                file_path=rel_path,
+                page_number=0,
+                image_index=img_idx,
+                width=img.size[0],
+                height=img.size[1],
+            ))
+        except Exception as e:
+            logger.debug(f"URL afbeelding overgeslagen ({img_url}): {e}")
+            continue
+
+    logger.info(f"HTML image extractie: {len(results)} afbeeldingen van {base_url}")
+    return results
+
+
 def extract_document_images(file_path: Path, doc_name: str) -> List[ExtractedImage]:
     """Extract images from a document (PDF or DOCX). Returns empty list for unsupported types."""
     if not config.EXTRACT_IMAGES:
