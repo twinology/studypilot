@@ -4339,10 +4339,18 @@
                 r.classList.toggle('selected', r.dataset.stt === currentSttProvider);
             });
             _updateSttConfigArea();
-            // Update STT key if present
-            const sttKeyInput = document.getElementById('setupOpenAiSttKey');
-            if (sttKeyInput && data.openai_stt_key_masked) {
-                sttKeyInput.placeholder = data.openai_stt_key_masked;
+            // Update STT key status after config area is rendered
+            var sttKeyInput = document.getElementById('setupOpenAiSttKey');
+            var sttKeyStatus = document.getElementById('sttKeyStatus');
+            if (sttKeyInput && data.openai_stt_key_set) {
+                sttKeyInput.placeholder = data.openai_stt_key_masked || 'sk-...';
+                if (sttKeyStatus) {
+                    sttKeyStatus.textContent = '✓ Ingesteld';
+                    sttKeyStatus.className = 'setup-status ok';
+                }
+            } else if (sttKeyStatus) {
+                sttKeyStatus.textContent = 'Optioneel';
+                sttKeyStatus.className = 'setup-status';
             }
             // Update STT provider label in voice controls
             const sttLabels = { browser: '🎤 Browser spraakherkenning', openai_whisper: '🎤 OpenAI Whisper', local_whisper: '🎤 Lokaal Whisper' };
@@ -4498,6 +4506,8 @@
             document.getElementById('setupElKey').value = '';
             document.getElementById('setupOpenRouterKey').value = '';
             document.getElementById('setupTavilyKey').value = '';
+            var sttKeyEl = document.getElementById('setupOpenAiSttKey');
+            if (sttKeyEl) sttKeyEl.value = '';
             const inlineAi = document.getElementById('setupAiKeyInline');
             if (inlineAi) inlineAi.value = '';
             const inlineOr = document.getElementById('setupOrKeyInline');
