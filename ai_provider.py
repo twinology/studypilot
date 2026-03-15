@@ -25,6 +25,7 @@ _DEFAULTS = {
     "tavily_api_key": "",
     "stt_provider": "browser",       # "browser", "openai_whisper", "local_whisper"
     "openai_stt_key": "",             # Separate key for OpenAI Whisper STT
+    "whisper_model": "large-v3",     # Whisper model size
 }
 
 

@@ -179,6 +179,7 @@ async def lifespan(app):
     logger.info(f"Embedding model: {config.EMBEDDING_MODEL}")
     logger.info(f"Logbestand: {LOG_FILE}")
     _start_telegram_bot()
+    _preload_whisper_model()
     yield
 
 
@@ -1525,24 +1526,89 @@ async def text_to_speech(req: TTSRequest):
 
 _local_whisper_model = None
 _local_whisper_lock = None
+_local_whisper_loading = False   # True while model is being loaded
+_local_whisper_model_name = None  # Currently loaded model name
+
+# Validated Whisper model options per device type
+WHISPER_MODEL_OPTIONS = {
+    "cuda": [
+        {"value": "large-v3",  "label": "Large V3 (beste kwaliteit, ~3 GB VRAM)",   "vram": "~3 GB",  "speed": "< 1s"},
+        {"value": "medium",    "label": "Medium (goede balans, ~2 GB VRAM)",         "vram": "~2 GB",  "speed": "< 1s"},
+        {"value": "small",     "label": "Small (snel, ~1 GB VRAM)",                  "vram": "~1 GB",  "speed": "< 0.5s"},
+        {"value": "base",      "label": "Base (zeer snel, ~0.5 GB VRAM)",            "vram": "~0.5 GB","speed": "< 0.3s"},
+        {"value": "tiny",      "label": "Tiny (minimaal, ~0.3 GB VRAM)",             "vram": "~0.3 GB","speed": "< 0.2s"},
+    ],
+    "cpu": [
+        {"value": "small",     "label": "Small (beste voor CPU, ~2 GB RAM)",         "ram": "~2 GB",   "speed": "~3-5s"},
+        {"value": "base",      "label": "Base (snel op CPU, ~1 GB RAM)",             "ram": "~1 GB",   "speed": "~1-3s"},
+        {"value": "tiny",      "label": "Tiny (snelst op CPU, ~0.5 GB RAM)",         "ram": "~0.5 GB", "speed": "< 1s"},
+        {"value": "medium",    "label": "Medium (zwaar voor CPU, ~5 GB RAM)",        "ram": "~5 GB",   "speed": "~8-15s"},
+        {"value": "large-v3",  "label": "Large V3 (⚠️ zeer zwaar voor CPU, ~10 GB RAM)", "ram": "~10 GB", "speed": "~20-40s"},
+    ],
+}
 
 
-def _get_local_whisper_model():
-    """Lazy-load faster-whisper model (singleton)."""
-    global _local_whisper_model, _local_whisper_lock
+def _detect_cuda_available() -> bool:
+    """Check if CUDA is available for CTranslate2 (faster-whisper backend)."""
+    try:
+        import ctranslate2
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
+def _get_whisper_device_and_compute():
+    """Determine device and compute type based on CUDA availability and config."""
+    cuda_available = _detect_cuda_available()
+    if cuda_available:
+        return "cuda", "float16"
+    return "cpu", "int8"
+
+
+def _get_local_whisper_model(model_name: str = None):
+    """Load faster-whisper model (singleton). Reloads if model_name changed."""
+    global _local_whisper_model, _local_whisper_lock, _local_whisper_loading, _local_whisper_model_name
     import threading
     if _local_whisper_lock is None:
         _local_whisper_lock = threading.Lock()
+
+    if model_name is None:
+        settings = load_settings()
+        model_name = settings.get("whisper_model", getattr(config, "LOCAL_WHISPER_MODEL", "large-v3"))
+
     with _local_whisper_lock:
-        if _local_whisper_model is None:
+        # Return existing model if same name
+        if _local_whisper_model is not None and _local_whisper_model_name == model_name:
+            return _local_whisper_model
+        # Load (or reload with new model)
+        _local_whisper_loading = True
+        try:
             from faster_whisper import WhisperModel
-            model_size = getattr(config, "LOCAL_WHISPER_MODEL", "large-v3")
-            device = getattr(config, "LOCAL_WHISPER_DEVICE", "cpu")
-            compute_type = getattr(config, "LOCAL_WHISPER_COMPUTE_TYPE", "int8")
-            logger.info(f"Lokaal Whisper model laden: {model_size} ({device}/{compute_type})...")
-            _local_whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
-            logger.info(f"Lokaal Whisper model geladen: {model_size}")
+            device, compute_type = _get_whisper_device_and_compute()
+            logger.info(f"Lokaal Whisper model laden: {model_name} ({device}/{compute_type})...")
+            _local_whisper_model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            _local_whisper_model_name = model_name
+            logger.info(f"Lokaal Whisper model geladen: {model_name} op {device}")
+        finally:
+            _local_whisper_loading = False
         return _local_whisper_model
+
+
+def _preload_whisper_model():
+    """Preload Whisper model in background thread at startup (if local_whisper is selected)."""
+    settings = load_settings()
+    if settings.get("stt_provider") != "local_whisper":
+        return
+    try:
+        import faster_whisper  # noqa: F401
+    except ImportError:
+        logger.warning("local_whisper geselecteerd maar faster-whisper niet geïnstalleerd")
+        return
+    model_name = settings.get("whisper_model", getattr(config, "LOCAL_WHISPER_MODEL", "large-v3"))
+    logger.info(f"Whisper model voorladen bij opstart: {model_name}...")
+    import threading
+    thread = threading.Thread(target=_get_local_whisper_model, args=(model_name,), daemon=True)
+    thread.start()
 
 
 @app.get("/api/stt/verify")
@@ -1616,11 +1682,38 @@ async def stt_status():
         local_available = True
     except ImportError:
         pass
+    cuda_available = _detect_cuda_available() if local_available else False
     openai_stt_key = settings.get("openai_stt_key", "")
     return {
         "local_whisper_available": local_available,
         "openai_whisper_available": bool(openai_stt_key),
         "current": settings.get("stt_provider", "browser"),
+        "cuda_available": cuda_available,
+        "device": "cuda" if cuda_available else "cpu",
+        "whisper_model": settings.get("whisper_model", getattr(config, "LOCAL_WHISPER_MODEL", "large-v3")),
+        "model_loaded": _local_whisper_model is not None,
+        "model_loading": _local_whisper_loading,
+        "loaded_model_name": _local_whisper_model_name,
+    }
+
+
+@app.get("/api/stt/models")
+async def stt_models():
+    """Return validated Whisper model options based on detected hardware."""
+    local_available = False
+    try:
+        import faster_whisper  # noqa: F401
+        local_available = True
+    except ImportError:
+        pass
+    cuda_available = _detect_cuda_available() if local_available else False
+    device = "cuda" if cuda_available else "cpu"
+    settings = load_settings()
+    return {
+        "device": device,
+        "cuda_available": cuda_available,
+        "current_model": settings.get("whisper_model", getattr(config, "LOCAL_WHISPER_MODEL", "large-v3")),
+        "models": WHISPER_MODEL_OPTIONS.get(device, WHISPER_MODEL_OPTIONS["cpu"]),
     }
 
 
@@ -1664,6 +1757,7 @@ async def speech_to_text(audio: UploadFile = File(...)):
         try:
             import io
             import tempfile
+            was_loading = _local_whisper_model is None
             model = _get_local_whisper_model()
             language = getattr(config, "WHISPER_LANGUAGE", "nl")
             # Write to temp file (faster-whisper needs file path)
@@ -2274,6 +2368,7 @@ class SettingsRequest(BaseModel):
     user_start_year: str = ""
     stt_provider: str = ""
     openai_stt_key: str = ""
+    whisper_model: str = ""
 
 
 @app.get("/api/settings")
@@ -2309,6 +2404,7 @@ async def get_settings():
         "stt_provider": s.get("stt_provider", "browser"),
         "openai_stt_key_set": bool(s.get("openai_stt_key", "")),
         "openai_stt_key_masked": (lambda k: (k[:4] + "..." + k[-4:]) if len(k) > 8 else ("***" if k else ""))(s.get("openai_stt_key", "")),
+        "whisper_model": s.get("whisper_model", getattr(config, "LOCAL_WHISPER_MODEL", "large-v3")),
         "user_name": s.get("user_name", ""),
         "user_education": s.get("user_education", ""),
         "user_start_year": s.get("user_start_year", ""),
@@ -2532,6 +2628,11 @@ async def update_settings(req: SettingsRequest):
         new_settings["stt_provider"] = req.stt_provider
     if req.openai_stt_key:
         new_settings["openai_stt_key"] = req.openai_stt_key
+    if req.whisper_model:
+        # Validate model name
+        valid_models = {m["value"] for opts in WHISPER_MODEL_OPTIONS.values() for m in opts}
+        if req.whisper_model in valid_models:
+            new_settings["whisper_model"] = req.whisper_model
     # User profile (always save, even if empty to allow clearing)
     new_settings["user_name"] = req.user_name.strip()
     new_settings["user_education"] = req.user_education.strip()

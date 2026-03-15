@@ -3046,7 +3046,17 @@
                     if (chatAudioChunks.length === 0) return;
                     var blob = new Blob(chatAudioChunks, { type: mimeType });
                     chatVoiceStatus.style.display = '';
-                    chatVoiceStatus.textContent = '⏳ Transcriberen...';
+                    // Check local whisper model loading status
+                    if (currentSttProvider === 'local_whisper') {
+                        try {
+                            var sr = await fetch(API + '/api/stt/status');
+                            var sd = await sr.json();
+                            chatVoiceStatus.textContent = sd.model_loading ? '⏳ Whisper model wordt geladen...' :
+                                !sd.model_loaded ? '⏳ Whisper model laden (eenmalig)...' : '⏳ Transcriberen...';
+                        } catch(e) { chatVoiceStatus.textContent = '⏳ Transcriberen...'; }
+                    } else {
+                        chatVoiceStatus.textContent = '⏳ Transcriberen...';
+                    }
                     var formData = new FormData();
                     formData.append('audio', blob, 'recording.webm');
                     try {
@@ -3658,7 +3668,24 @@
     }
 
     async function transcribeViaApi(audioBlob) {
-        voiceStatus.textContent = '⏳ Transcriberen...';
+        // Check if local whisper model needs loading
+        if (currentSttProvider === 'local_whisper') {
+            try {
+                var statusRes = await fetch(API + '/api/stt/status');
+                var statusData = await statusRes.json();
+                if (statusData.model_loading) {
+                    voiceStatus.textContent = '⏳ Whisper model wordt geladen, even geduld...';
+                } else if (!statusData.model_loaded) {
+                    voiceStatus.textContent = '⏳ Whisper model laden (eenmalig)...';
+                } else {
+                    voiceStatus.textContent = '⏳ Transcriberen...';
+                }
+            } catch(e) {
+                voiceStatus.textContent = '⏳ Transcriberen...';
+            }
+        } else {
+            voiceStatus.textContent = '⏳ Transcriberen...';
+        }
         var formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
         try {
@@ -4557,8 +4584,9 @@
                 tavilyKeyStatus.className = 'setup-status';
             }
 
-            // Load STT provider
+            // Load STT provider + Whisper model
             currentSttProvider = data.stt_provider || 'browser';
+            currentWhisperModel = data.whisper_model || 'large-v3';
             document.querySelectorAll('.stt-radio').forEach(r => {
                 r.classList.toggle('selected', r.dataset.stt === currentSttProvider);
             });
@@ -4739,6 +4767,7 @@
 
     // STT provider radio click — use event delegation for robustness
     let currentSttProvider = 'browser';
+    let currentWhisperModel = 'large-v3';
     var sttRadiosContainer = document.getElementById('sttRadios');
     if (sttRadiosContainer) {
         sttRadiosContainer.addEventListener('click', function(e) {
@@ -4763,14 +4792,55 @@
                 '</div>';
             hint.textContent = 'OpenAI Whisper: uitstekende Nederlandse spraakherkenning via cloud API (~$0.006/min).';
         } else if (currentSttProvider === 'local_whisper') {
-            area.innerHTML = '<div class="field-hint" id="localWhisperStatus" style="margin-top:8px">⏳ Controle of faster-whisper geïnstalleerd is...</div>';
-            hint.textContent = 'Lokaal Whisper: draait op je eigen machine. Geen API key nodig, wel meer geheugen (~3GB).';
-            // Check status
-            fetch(API + '/api/stt/status').then(r => r.json()).then(data => {
+            area.innerHTML = '<div id="localWhisperStatus" style="margin-top:8px">⏳ Hardware detecteren...</div>';
+            hint.textContent = 'Lokaal Whisper: draait op je eigen machine. Geen API key nodig.';
+            // Fetch status + model options in parallel
+            Promise.all([
+                fetch(API + '/api/stt/status').then(r => r.json()),
+                fetch(API + '/api/stt/models').then(r => r.json())
+            ]).then(function([status, modelsData]) {
                 var el = document.getElementById('localWhisperStatus');
-                if (el) el.innerHTML = data.local_whisper_available
-                    ? '<span style="color:var(--success)">✅ faster-whisper is geïnstalleerd en beschikbaar</span>'
-                    : '<span style="color:var(--danger)">❌ faster-whisper is niet geïnstalleerd. Installeer met: <code>pip install faster-whisper</code></span>';
+                if (!el) return;
+                if (!status.local_whisper_available) {
+                    el.innerHTML = '<span style="color:var(--danger)">❌ faster-whisper is niet geïnstalleerd. Installeer met: <code>pip install faster-whisper</code></span>';
+                    return;
+                }
+                var deviceLabel = modelsData.cuda_available
+                    ? '🟢 GPU (CUDA) gedetecteerd — optimale snelheid'
+                    : '🔵 CPU modus — geen CUDA GPU gevonden';
+                var modelOptions = (modelsData.models || []).map(function(m) {
+                    var selected = m.value === modelsData.current_model ? ' selected' : '';
+                    return '<option value="' + m.value + '"' + selected + '>' + m.label + '</option>';
+                }).join('');
+                var loadStatus = '';
+                if (status.model_loading) {
+                    loadStatus = '<div style="margin-top:6px;color:var(--warning)">⏳ Model wordt geladen...</div>';
+                } else if (status.model_loaded) {
+                    loadStatus = '<div style="margin-top:6px;color:var(--success)">✅ Model <strong>' + status.loaded_model_name + '</strong> geladen en klaar</div>';
+                } else {
+                    loadStatus = '<div style="margin-top:6px;color:var(--muted)">ℹ️ Model wordt geladen bij opstart of eerste gebruik</div>';
+                }
+                el.innerHTML =
+                    '<span style="color:var(--success)">✅ faster-whisper geïnstalleerd</span>' +
+                    '<div style="margin-top:6px">' + deviceLabel + '</div>' +
+                    '<div class="setup-field" style="margin-top:10px">' +
+                        '<label for="whisperModelSelect">Whisper Model</label>' +
+                        '<select id="whisperModelSelect" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">' +
+                            modelOptions +
+                        '</select>' +
+                        '<div class="field-hint">' + (modelsData.cuda_available ? 'GPU: alle modellen draaien snel. Large V3 geeft beste kwaliteit.' : 'CPU: kies Small of Base voor acceptabele snelheid.') + '</div>' +
+                    '</div>' +
+                    loadStatus;
+                // Track model selection
+                var sel = document.getElementById('whisperModelSelect');
+                if (sel) {
+                    sel.addEventListener('change', function() {
+                        currentWhisperModel = this.value;
+                    });
+                }
+                hint.textContent = modelsData.cuda_available
+                    ? 'Lokaal Whisper op GPU: razendsnel, privé, geen kosten.'
+                    : 'Lokaal Whisper op CPU: privé en gratis, maar langzamer. Kies een kleiner model voor snelheid.';
             }).catch(function() {
                 var el = document.getElementById('localWhisperStatus');
                 if (el) el.textContent = '⚠️ Kon status niet controleren';
@@ -4818,6 +4888,9 @@
         payload.stt_provider = currentSttProvider;
         const sttKey = document.getElementById('setupOpenAiSttKey');
         if (sttKey && sttKey.value.trim()) payload.openai_stt_key = sttKey.value.trim();
+        // Whisper model (read from dropdown if visible, otherwise use current)
+        const whisperSel = document.getElementById('whisperModelSelect');
+        payload.whisper_model = whisperSel ? whisperSel.value : currentWhisperModel;
         // User profile
         payload.user_name = document.getElementById('setupUserName').value.trim();
         payload.user_education = document.getElementById('setupEducation').value.trim();
