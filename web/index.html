@@ -3769,10 +3769,17 @@
     }
     audioStopBtn.addEventListener('click', stopAllAudio);
 
-    // Also stop with Escape key
+    // Also stop with Escape key — always call stopAllAudio if any audio might be playing
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && (isPlaying || audioQueue.length > 0)) {
-            stopAllAudio();
+        if (e.key === 'Escape') {
+            var audioActive = isPlaying || audioQueue.length > 0
+                || !sharedAudio.paused
+                || speechSynthesis.speaking
+                || audioStopBtn.classList.contains('visible');
+            if (audioActive) {
+                e.preventDefault();
+                stopAllAudio();
+            }
         }
     });
 
