@@ -4420,7 +4420,13 @@
         }
         const quizType = document.querySelector('input[name="quizType"]:checked').value;
         const difficulty = document.querySelector('input[name="quizDifficulty"]:checked').value;
-        const numQuestions = parseInt(document.getElementById('quizNumQuestions').value) || 5;
+        const maxQ = quizType === 'open' ? 20 : 60;
+        let numQuestions = parseInt(document.getElementById('quizNumQuestions').value) || 5;
+        if (numQuestions > maxQ) {
+            numQuestions = maxQ;
+            document.getElementById('quizNumQuestions').value = maxQ;
+            showStatus('Aantal vragen aangepast naar maximum (' + maxQ + ').', 'warning');
+        }
 
         _quizSubject = subject;
         _quizType = quizType;
