@@ -4422,7 +4422,31 @@
                 '<label for="setupOpenAiSttKey">OpenAI API Key (voor Whisper STT) <span class="setup-status" id="sttKeyStatus"></span></label>' +
                 '<input type="password" id="setupOpenAiSttKey" placeholder="sk-...">' +
                 '<div class="field-hint">Aparte key voor spraakherkenning. Verkrijgbaar via <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--primary)">platform.openai.com</a></div>' +
+                '<button class="btn btn-secondary btn-sm" id="sttVerifyBtn" style="margin-top:6px">🔍 Controleer verbinding</button>' +
+                ' <span id="sttVerifyResult" style="font-size:12px"></span>' +
                 '</div>';
+            setTimeout(function() {
+                var verifyBtn = document.getElementById('sttVerifyBtn');
+                if (verifyBtn) verifyBtn.addEventListener('click', async function() {
+                    verifyBtn.disabled = true;
+                    verifyBtn.textContent = 'Controleren...';
+                    var resultEl = document.getElementById('sttVerifyResult');
+                    resultEl.textContent = '';
+                    try {
+                        var res = await fetch(API + '/api/stt/verify');
+                        var data = await res.json();
+                        if (data.status === 'ok') {
+                            resultEl.innerHTML = '<span style="color:var(--success)">✅ ' + data.message + '</span>';
+                        } else {
+                            resultEl.innerHTML = '<span style="color:var(--danger)">❌ ' + data.message + '</span>';
+                        }
+                    } catch (err) {
+                        resultEl.innerHTML = '<span style="color:var(--danger)">❌ Kan server niet bereiken</span>';
+                    }
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = '🔍 Controleer verbinding';
+                });
+            }, 50);
             hint.textContent = 'OpenAI Whisper: uitstekende Nederlandse spraakherkenning via cloud API (~$0.006/min).';
         } else if (currentSttProvider === 'local_whisper') {
             area.innerHTML = '<div class="field-hint" id="localWhisperStatus" style="margin-top:8px">⏳ Controle of faster-whisper geïnstalleerd is...</div>';

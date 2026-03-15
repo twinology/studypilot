@@ -1545,6 +1545,67 @@ def _get_local_whisper_model():
         return _local_whisper_model
 
 
+@app.get("/api/stt/verify")
+async def stt_verify():
+    """Verify that the configured STT provider actually works."""
+    settings = load_settings()
+    stt_provider = settings.get("stt_provider", "browser")
+
+    if stt_provider == "browser":
+        return {"status": "ok", "provider": "browser", "message": "Browser Speech API — geen verificatie nodig."}
+
+    if stt_provider == "openai_whisper":
+        api_key = settings.get("openai_stt_key", "")
+        if not api_key:
+            return {"status": "error", "provider": "openai_whisper", "message": "Geen OpenAI STT key geconfigureerd."}
+        try:
+            import openai
+            import io
+            client = openai.OpenAI(api_key=api_key)
+            # Send a tiny silent WAV to verify the key works
+            # Minimal WAV header: 44 bytes header + 1600 bytes silence (0.1s mono 16kHz 16-bit)
+            import struct
+            sample_rate = 16000
+            num_samples = 1600
+            data_size = num_samples * 2
+            wav = io.BytesIO()
+            wav.write(b'RIFF')
+            wav.write(struct.pack('<I', 36 + data_size))
+            wav.write(b'WAVE')
+            wav.write(b'fmt ')
+            wav.write(struct.pack('<IHHIIHH', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16))
+            wav.write(b'data')
+            wav.write(struct.pack('<I', data_size))
+            wav.write(b'\x00' * data_size)
+            wav.seek(0)
+            wav.name = "verify.wav"
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=wav,
+                language="nl",
+            )
+            return {"status": "ok", "provider": "openai_whisper", "message": "OpenAI Whisper API key is geldig en werkt!"}
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(f"OpenAI Whisper verificatie mislukt: {error_msg}")
+            if "401" in error_msg or "invalid" in error_msg.lower() or "Incorrect API key" in error_msg:
+                return {"status": "error", "provider": "openai_whisper", "message": "Ongeldige API key. Controleer je OpenAI key."}
+            if "429" in error_msg:
+                return {"status": "error", "provider": "openai_whisper", "message": "Rate limit bereikt. Key is geldig maar tijdelijk geblokkeerd."}
+            if "insufficient_quota" in error_msg:
+                return {"status": "error", "provider": "openai_whisper", "message": "Geen tegoed meer op je OpenAI account."}
+            return {"status": "error", "provider": "openai_whisper", "message": f"Verbinding mislukt: {error_msg[:100]}"}
+
+    if stt_provider == "local_whisper":
+        try:
+            import faster_whisper  # noqa: F401
+            return {"status": "ok", "provider": "local_whisper", "message": "faster-whisper is geïnstalleerd en beschikbaar."}
+        except ImportError:
+            return {"status": "error", "provider": "local_whisper", "message": "faster-whisper is niet geïnstalleerd. Installeer met: pip install faster-whisper"}
+
+    return {"status": "error", "provider": stt_provider, "message": f"Onbekende STT provider: {stt_provider}"}
+
+
 @app.get("/api/stt/status")
 async def stt_status():
     """Check availability of STT providers."""
