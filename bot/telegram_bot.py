@@ -96,7 +96,7 @@ async def cmd_genereer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        scenario = await generate_dynamic_scenario(topic, difficulty)
+        scenario, _usage = await generate_dynamic_scenario(topic, difficulty)
     except Exception as e:
         await update.message.reply_text(f"Fout bij genereren scenario: {e}")
         return
@@ -449,7 +449,7 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Te weinig berichten voor feedback. Probeer de gesprekssimulatie langer voort te zetten.")
         return
 
-    feedback = await generate_feedback(session)
+    feedback, _usage = await generate_feedback(session)
 
     # Split long messages (Telegram limit is 4096 chars)
     if len(feedback) <= 4000:

@@ -2112,6 +2112,23 @@
         } catch (e) { /* fire and forget */ }
     }
 
+    function _trackUsage(usage, chunks) {
+        if (!usage) return;
+        const inTok = usage.input_tokens || 0;
+        const outTok = usage.output_tokens || 0;
+        const totalTokens = inTok + outTok;
+        const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
+        const c = chunks || 0;
+        if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
+        window._tokenStats.input += inTok;
+        window._tokenStats.output += outTok;
+        window._tokenStats.total += totalTokens;
+        window._tokenStats.chunks += c;
+        window._tokenStats.cost += costUsd;
+        window._tokenStats.calls += 1;
+        _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: c, cost: costUsd, calls: 1 });
+    }
+
     // Load on startup
     _loadExchangeRate();
     _loadTotalTokenStats();
@@ -2965,26 +2982,10 @@
                 div.appendChild(speakBtn);
             }
 
-            // Token usage badge
+            // Track token usage
             if (usage) {
-                const inTok = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
-                const outTok = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0;
-                const totalTokens = inTok + outTok;
-                const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
-                const costEur = costUsd * (window._eurRate || 0.92);
                 const chunks = typeof usage.context_chunks === 'number' ? usage.context_chunks : 0;
-
-                // Track session stats
-                if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
-                window._tokenStats.input += inTok;
-                window._tokenStats.output += outTok;
-                window._tokenStats.total += totalTokens;
-                window._tokenStats.chunks += chunks;
-                window._tokenStats.cost += costUsd;
-                window._tokenStats.calls += 1;
-
-                // Persist delta to backend (fire and forget)
-                _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: chunks, cost: costUsd, calls: 1 });
+                _trackUsage(usage, chunks);
             }
         } else {
             div.textContent = text;
@@ -3074,6 +3075,7 @@
             document.getElementById('startGeneratedSession').addEventListener('click', () => {
                 startSession(s.id);
             });
+            _trackUsage(data.usage);
             showStatus('Scenario gegenereerd!', 'success');
         } catch (err) {
             area.innerHTML = '';
@@ -3117,6 +3119,7 @@
             currentEmotion = data.scenario.emotion || '';
 
             addMessage(sessionMessages, data.opening_message, 'bot');
+            _trackUsage(data.usage);
 
             // Clear the generated scenario area for next time
             document.getElementById('generatedScenarioArea').innerHTML = '';
@@ -3202,6 +3205,7 @@
 
             document.getElementById('feedbackText').innerHTML = markdownToHtml(data.feedback);
             document.getElementById('feedbackOverlay').classList.add('visible');
+            _trackUsage(data.usage);
 
             // Reset UI
             sessionUI.classList.add('hidden');
@@ -4450,20 +4454,7 @@
 
             _quizQuestions = data.questions;
 
-            // Track token usage
-            if (data.usage) {
-                const inTok = data.usage.input_tokens || 0;
-                const outTok = data.usage.output_tokens || 0;
-                const totalTokens = inTok + outTok;
-                const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
-                if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
-                window._tokenStats.input += inTok;
-                window._tokenStats.output += outTok;
-                window._tokenStats.total += totalTokens;
-                window._tokenStats.cost += costUsd;
-                window._tokenStats.calls += 1;
-                _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: 0, cost: costUsd, calls: 1 });
-            }
+            _trackUsage(data.usage);
 
             renderQuizQuestions();
             showStatus(`Toets gegenereerd: ${_quizQuestions.length} vragen over "${subject}"`, 'success');
@@ -4552,20 +4543,7 @@
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || 'Fout bij beoordeling');
 
-            // Track token usage
-            if (data.usage) {
-                const inTok = data.usage.input_tokens || 0;
-                const outTok = data.usage.output_tokens || 0;
-                const totalTokens = inTok + outTok;
-                const costUsd = inTok * 3 / 1_000_000 + outTok * 15 / 1_000_000;
-                if (!window._tokenStats) window._tokenStats = { input: 0, output: 0, total: 0, chunks: 0, cost: 0, calls: 0 };
-                window._tokenStats.input += inTok;
-                window._tokenStats.output += outTok;
-                window._tokenStats.total += totalTokens;
-                window._tokenStats.cost += costUsd;
-                window._tokenStats.calls += 1;
-                _persistTokenDelta({ input: inTok, output: outTok, total: totalTokens, chunks: 0, cost: costUsd, calls: 1 });
-            }
+            _trackUsage(data.usage);
 
             renderQuizResults(data);
         } catch (err) {

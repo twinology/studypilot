@@ -61,7 +61,9 @@ Geef een score van 1-10 met een korte toelichting.
 
 Communiceer in het Nederlands. Wees eerlijk maar aanmoedigend."""
 
-    return create_chat_completion(
+    result = create_chat_completion(
         messages=[{"role": "user", "content": prompt}],
         max_tokens=MAX_TOKENS,
+        return_usage=True,
     )
+    return result["text"], result["usage"]

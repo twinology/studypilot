@@ -316,7 +316,8 @@ def create_vision_completion(
     image_bytes: bytes,
     mime_type: str = "image/png",
     max_tokens: int = 512,
-) -> str:
+    return_usage: bool = False,
+):
     """Send an image to the vision API and return the text description.
 
     Works with both Anthropic (Claude) and OpenAI (GPT-4o) vision.
@@ -351,10 +352,16 @@ def create_vision_completion(
                     ],
                 }],
             )
-            return response.choices[0].message.content
+            text = response.choices[0].message.content
+            if return_usage:
+                return {"text": text, "usage": _extract_usage(response, "ollama")}
+            return text
         except Exception as e:
             logger.warning(f"Ollama vision mislukt ({model}): {e}. Afbeelding overgeslagen.")
-            return f"[Afbeelding kon niet worden beschreven door lokaal model {model}]"
+            fallback = f"[Afbeelding kon niet worden beschreven door lokaal model {model}]"
+            if return_usage:
+                return {"text": fallback, "usage": {"input_tokens": 0, "output_tokens": 0}}
+            return fallback
 
     elif provider == "openrouter":
         import openai as _openai
@@ -374,10 +381,16 @@ def create_vision_completion(
                     ],
                 }],
             )
-            return response.choices[0].message.content
+            text = response.choices[0].message.content
+            if return_usage:
+                return {"text": text, "usage": _extract_usage(response, "ollama")}
+            return text
         except Exception as e:
             logger.warning(f"OpenRouter vision mislukt ({model}): {e}. Afbeelding overgeslagen.")
-            return f"[Afbeelding kon niet worden beschreven via OpenRouter model {model}]"
+            fallback = f"[Afbeelding kon niet worden beschreven via OpenRouter model {model}]"
+            if return_usage:
+                return {"text": fallback, "usage": {"input_tokens": 0, "output_tokens": 0}}
+            return fallback
 
     elif provider == "openai":
         import openai
@@ -395,7 +408,10 @@ def create_vision_completion(
                 ],
             }],
         )
-        return response.output_text
+        text = response.output_text
+        if return_usage:
+            return {"text": text, "usage": _extract_usage(response, "openai_responses")}
+        return text
 
     else:  # anthropic
         import anthropic
@@ -411,4 +427,7 @@ def create_vision_completion(
                 ],
             }],
         )
-        return response.content[0].text
+        text = response.content[0].text
+        if return_usage:
+            return {"text": text, "usage": _extract_usage(response, "anthropic")}
+        return text

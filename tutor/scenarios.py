@@ -99,10 +99,13 @@ Genereer een scenario in exact dit JSON-formaat (zonder markdown codeblokken):
     "character_name": "Voornaam van het personage (bijv. Marie, Jan, Ahmed)"
 }}"""
 
-    text = create_chat_completion(
+    result = create_chat_completion(
         messages=[{"role": "user", "content": prompt}],
         max_tokens=1024,
+        return_usage=True,
     )
+    text = result["text"]
+    usage = result["usage"]
 
     data = json.loads(text)
     gender = data.get("gender", "female").lower()
@@ -126,4 +129,4 @@ Genereer een scenario in exact dit JSON-formaat (zonder markdown codeblokken):
     )
 
     store_scenario(scenario)
-    return scenario
+    return scenario, usage

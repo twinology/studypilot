@@ -301,12 +301,16 @@ def _process_images_background(dest: Path, filename: str):
         from rag.image_describer import describe_single_image
         all_chunks = []
         all_metas = []
+        vision_usage_total = {"input_tokens": 0, "output_tokens": 0}
         for i, img in enumerate(images):
             try:
-                chunk, meta = describe_single_image(img, filename)
+                chunk, meta, usage = describe_single_image(img, filename)
                 if chunk:
                     all_chunks.append(chunk)
                     all_metas.append(meta)
+                if usage:
+                    vision_usage_total["input_tokens"] += usage.get("input_tokens", 0)
+                    vision_usage_total["output_tokens"] += usage.get("output_tokens", 0)
             except Exception as e:
                 logger.warning(f"Afbeelding {getattr(img, 'file_path', img)} overgeslagen: {e}")
             _image_progress[filename]["done"] = i + 1
@@ -317,6 +321,15 @@ def _process_images_background(dest: Path, filename: str):
             logger.info(f"✓ Afbeeldingen verwerkt: {filename} — {total} afbeeldingen, {num_image_chunks} chunks")
         else:
             logger.info(f"Geen afbeelding-chunks gegenereerd voor {filename}")
+
+        # Persist vision token usage
+        if vision_usage_total["input_tokens"] > 0 or vision_usage_total["output_tokens"] > 0:
+            in_tok = vision_usage_total["input_tokens"]
+            out_tok = vision_usage_total["output_tokens"]
+            total_tok = in_tok + out_tok
+            cost_usd = in_tok * 3 / 1_000_000 + out_tok * 15 / 1_000_000
+            _persist_usage_delta(in_tok, out_tok, total_tok, 0, cost_usd)
+            logger.info(f"Vision tokens getracked: in={in_tok} out={out_tok} ({total} afbeeldingen)")
 
         _image_progress[filename]["status"] = "done"
     except Exception as e:
@@ -1096,9 +1109,9 @@ async def create_dynamic_scenario(req: GenerateScenarioRequest):
     if not is_configured():
         raise HTTPException(503, "Geen AI API-key geconfigureerd. Ga naar Setup.")
     logger.info(f"Scenario genereren: thema='{req.topic or 'geen'}', niveau={req.difficulty}, rag={rag_enabled}")
-    scenario = await generate_dynamic_scenario(req.topic, req.difficulty, use_rag=rag_enabled)
-    logger.info(f"Scenario gegenereerd: {scenario.name} ({scenario.difficulty})")
-    return {"scenario": scenario.to_dict()}
+    scenario, usage = await generate_dynamic_scenario(req.topic, req.difficulty, use_rag=rag_enabled)
+    logger.info(f"Scenario gegenereerd: {scenario.name} ({scenario.difficulty}) | tokens in={usage.get('input_tokens', '?')} out={usage.get('output_tokens', '?')}")
+    return {"scenario": scenario.to_dict(), "usage": usage}
 
 
 # ── Session endpoints ────────────────────────────────────────────────
@@ -1146,11 +1159,14 @@ Je personage heet: {char_name}
         system += f"\n- De student heet {user_name}. Spreek de student aan met '{user_name}' en gebruik 'je' en 'jij'."
 
     try:
-        opening = create_chat_completion(
+        result = create_chat_completion(
             messages=[{"role": "user", "content": "Start het gesprek vanuit je rol."}],
             system=system,
             max_tokens=config.MAX_TOKENS,
+            return_usage=True,
         )
+        opening = result["text"]
+        usage = result["usage"]
     except RuntimeError as e:
         session_manager.end_session(req.user_id)
         raise HTTPException(503, str(e))
@@ -1163,6 +1179,7 @@ Je personage heet: {char_name}
         "session_id": session.session_id,
         "scenario": scenario.to_dict(),
         "opening_message": opening,
+        "usage": usage,
     }
 
 
@@ -1243,9 +1260,9 @@ async def session_feedback(req: SessionFeedbackRequest):
             "message_count": len(session.messages),
         }
 
-    feedback = await generate_feedback(session, use_rag=rag_enabled)
+    feedback, fb_usage = await generate_feedback(session, use_rag=rag_enabled)
     session.feedback = feedback
-    logger.info(f"Feedback gegenereerd [{req.user_id}]: {len(session.messages)} berichten")
+    logger.info(f"Feedback gegenereerd [{req.user_id}]: {len(session.messages)} berichten | tokens in={fb_usage.get('input_tokens', '?')} out={fb_usage.get('output_tokens', '?')}")
 
     # Save completed session with feedback
     session_messages = [
@@ -1266,6 +1283,7 @@ async def session_feedback(req: SessionFeedbackRequest):
         "feedback": feedback,
         "message_count": len(session.messages),
         "scenario": session.scenario.to_dict(),
+        "usage": fb_usage,
     }
 
 
@@ -2138,6 +2156,18 @@ async def get_openrouter_models():
 
 
 # ── Token Stats Persistence ─────────────────────────────────────────
+
+def _persist_usage_delta(input_tokens: int, output_tokens: int, total_tokens: int, chunks: int, cost_usd: float):
+    """Server-side helper to persist a token usage delta."""
+    current = _load_token_stats()
+    current["input"] = current.get("input", 0) + input_tokens
+    current["output"] = current.get("output", 0) + output_tokens
+    current["total"] = current.get("total", 0) + total_tokens
+    current["chunks"] = current.get("chunks", 0) + chunks
+    current["cost"] = current.get("cost", 0) + cost_usd
+    current["calls"] = current.get("calls", 0) + 1
+    _save_token_stats(current)
+
 
 def _load_token_stats() -> dict:
     """Load cumulative token stats from disk."""

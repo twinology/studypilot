@@ -72,12 +72,12 @@ def describe_images(
     return chunks, metadatas
 
 
-def describe_single_image(img: ExtractedImage, doc_name: str) -> Tuple[str, dict]:
-    """Describe a single image. Returns (chunk_text, metadata) or (None, None) on failure."""
+def describe_single_image(img: ExtractedImage, doc_name: str) -> Tuple[str, dict, dict]:
+    """Describe a single image. Returns (chunk_text, metadata, usage) or (None, None, None) on failure."""
     image_path = config.BASE_DIR / img.file_path
     if not image_path.exists():
         logger.warning(f"Afbeelding niet gevonden: {img.file_path}")
-        return None, None
+        return None, None, None
 
     try:
         image_bytes = image_path.read_bytes()
@@ -85,19 +85,22 @@ def describe_single_image(img: ExtractedImage, doc_name: str) -> Tuple[str, dict
         mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif"}
         mime_type = mime_map.get(suffix, "image/png")
 
-        description = create_vision_completion(
+        result = create_vision_completion(
             prompt=IMAGE_DESCRIPTION_PROMPT,
             image_bytes=image_bytes,
             mime_type=mime_type,
             max_tokens=512,
+            return_usage=True,
         )
+        description = result["text"]
+        usage = result["usage"]
 
         page_info = f"pagina {img.page_number}" if img.page_number > 0 else f"positie {img.image_index}"
         chunk_text = f"[Afbeelding uit {doc_name}, {page_info}] {description}"
 
         logger.info(f"Afbeelding beschreven: {img.file_path} ({len(description)} tekens)")
 
-        return chunk_text, {"content_type": "image_description", "image_path": img.file_path}
+        return chunk_text, {"content_type": "image_description", "image_path": img.file_path}, usage
     except Exception as e:
         logger.warning(f"Kon afbeelding niet beschrijven ({img.file_path}): {e}")
-        return None, None
+        return None, None, None
