@@ -462,13 +462,13 @@
         .download-btn {
             background: none;
             border: none;
-            color: var(--text-muted);
+            color: var(--primary);
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
             padding: 4px 6px;
             transition: color 0.2s;
         }
-        .download-btn:hover { color: var(--primary); }
+        .download-btn:hover { color: #1a56db; }
         .export-dropdown {
             position: absolute;
             right: 0;
@@ -3412,7 +3412,7 @@
                             </div>
                         </div>
                         <div class="conv-actions">
-                            <button class="download-btn" onclick="event.stopPropagation();toggleExportDropdown(this)" title="Downloaden">&#8681;</button>
+                            <button class="download-btn" onclick="event.stopPropagation();toggleExportDropdown(this)" title="Downloaden">⬇️</button>
                             <div class="export-dropdown">
                                 <button onclick="event.stopPropagation();exportConversation('${c.id}','pdf')">PDF</button>
                                 <button onclick="event.stopPropagation();exportConversation('${c.id}','docx')">Word (.docx)</button>
