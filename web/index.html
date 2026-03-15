@@ -4485,7 +4485,9 @@
             });
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.detail || 'Opslaan mislukt');
+                var detail = data.detail;
+                if (Array.isArray(detail)) detail = detail.map(function(d) { return d.msg || JSON.stringify(d); }).join(', ');
+                throw new Error(detail || 'Opslaan mislukt');
             }
             statusEl.textContent = '✓ Opgeslagen!';
             statusEl.style.color = 'var(--success)';
