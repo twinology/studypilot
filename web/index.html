@@ -3633,8 +3633,10 @@
                     ? (c.metadata.topic || 'Toets')
                     : (c.metadata.topic || 'Chat rapport');
                 const dateStr = c.timestamp ? new Date(c.timestamp).toLocaleString('nl-NL') : '';
-                const difficulty = c.metadata.scenario_difficulty
-                    ? ` &middot; ${c.metadata.scenario_difficulty}`
+                const diffValue = c.metadata.scenario_difficulty || c.metadata.quiz_difficulty || '';
+                const diffDots = { basis: '🟢', gevorderd: '🟠', expert: '🔴' };
+                const difficulty = diffValue
+                    ? ` &middot; ${diffDots[diffValue] || ''} ${diffValue}`
                     : '';
                 const quizScore = c.type === 'quiz' && c.metadata.score !== undefined
                     ? ` &middot; ${c.metadata.score}/${c.metadata.total} (${c.metadata.percentage}%)`
@@ -3675,7 +3677,10 @@
                 : data.type === 'quiz'
                 ? (data.metadata.topic || 'Toets')
                 : 'Chat rapport';
-            document.getElementById('convDetailTitle').textContent = title;
+            const detailDiffValue = data.metadata.scenario_difficulty || data.metadata.quiz_difficulty || '';
+            const detailDiffDots = { basis: '🟢', gevorderd: '🟠', expert: '🔴' };
+            const detailDiffLabel = detailDiffValue ? ` ${detailDiffDots[detailDiffValue] || ''} ${detailDiffValue}` : '';
+            document.getElementById('convDetailTitle').textContent = title + detailDiffLabel;
 
             const msgContainer = document.getElementById('convDetailMessages');
             msgContainer.innerHTML = '';
