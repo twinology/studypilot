@@ -1643,7 +1643,7 @@
 
                     <div class="quiz-field">
                         <label for="quizNumQuestions">Aantal vragen</label>
-                        <input type="number" id="quizNumQuestions" value="5" min="1" max="20">
+                        <input type="number" id="quizNumQuestions" value="5" min="1" max="60">
                     </div>
 
                     <button class="btn btn-primary" id="quizStartBtn" style="margin-top:8px">Start toets</button>
@@ -4380,6 +4380,12 @@
         opt.querySelector('input[type="radio"]').addEventListener('change', () => {
             document.querySelectorAll('#quizTypeOptions .quiz-type-option').forEach(o => o.classList.remove('selected'));
             opt.classList.add('selected');
+            // Update max questions based on type
+            const type = opt.querySelector('input').value;
+            const numInput = document.getElementById('quizNumQuestions');
+            const maxQ = type === 'open' ? 20 : 60;
+            numInput.max = maxQ;
+            if (parseInt(numInput.value) > maxQ) numInput.value = maxQ;
         });
     });
     document.querySelectorAll('#quizDifficultyOptions .quiz-type-option').forEach(opt => {

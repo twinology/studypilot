@@ -1555,8 +1555,9 @@ async def generate_quiz(req: QuizGenerateRequest):
     if not is_configured():
         raise HTTPException(503, "Geen AI API-key geconfigureerd. Ga naar Setup.")
 
-    if req.num_questions < 1 or req.num_questions > 20:
-        raise HTTPException(400, "Aantal vragen moet tussen 1 en 20 liggen.")
+    max_questions = 20 if req.quiz_type == "open" else 60
+    if req.num_questions < 1 or req.num_questions > max_questions:
+        raise HTTPException(400, f"Aantal vragen moet tussen 1 en {max_questions} liggen.")
 
     quiz_type_label = {
         "mc3": "meerkeuzevragen met 3 antwoordmogelijkheden (A, B, C)",
