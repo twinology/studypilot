@@ -902,6 +902,28 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
             50% { box-shadow: 0 0 0 12px rgba(220, 38, 38, 0); }
         }
+        /* Global audio stop button */
+        #audioStopBtn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: var(--danger);
+            color: #fff;
+            font-size: 22px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(220,38,38,0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        #audioStopBtn:hover { transform: scale(1.1); }
+        #audioStopBtn.visible { display: flex; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .btn-loading {
             position: relative;
@@ -3116,7 +3138,7 @@
             if (!res.ok) throw new Error(data.detail || 'Fout');
             let text = data.answer;
             if (data.sources && data.sources.length > 0) {
-                text += `\n\n📄 Bronnen: ${data.sources.join(', ')}`;
+                text += '\n\n📄 **Bronnen:**\n' + data.sources.map(function(s) { return '- ' + s; }).join('\n');
             }
             addMessage(chatMessages, text, 'bot', data.usage);
             // Show images from multimodal RAG
@@ -3702,17 +3724,47 @@
     // remembers the user-gesture unlock across plays.
     const sharedAudio = new Audio();
 
+    // Global audio stop
+    const audioStopBtn = document.getElementById('audioStopBtn');
+    function stopAllAudio() {
+        sharedAudio.pause();
+        sharedAudio.currentTime = 0;
+        speechSynthesis.cancel();
+        audioQueue.length = 0;
+        isPlaying = false;
+        _voiceInitiated = false;
+        audioStopBtn.classList.remove('visible');
+        // Reset all speak buttons
+        document.querySelectorAll('.speak-btn.playing').forEach(function(btn) {
+            btn.classList.remove('playing');
+            btn.innerHTML = '<span class="speak-icon">&#128264;</span> Afspelen';
+        });
+    }
+    audioStopBtn.addEventListener('click', stopAllAudio);
+
+    // Also stop with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && (isPlaying || audioQueue.length > 0)) {
+            stopAllAudio();
+        }
+    });
+
+    function _showAudioStop() { audioStopBtn.classList.add('visible'); }
+    function _hideAudioStop() { audioStopBtn.classList.remove('visible'); }
+
     async function speak(text) {
         // Strip stage directions — [CONTEXT] lines and standalone italic lines (*action*)
         const spokenText = text.replace(/^\[CONTEXT\].*$/gm, '').replace(/^\*[^*\n]+\*\s*$/gm, '').trim();
         if (!spokenText) return;
         audioQueue.push(spokenText);
+        _showAudioStop();
         if (!isPlaying) playNext();
     }
 
     async function playNext() {
         if (audioQueue.length === 0) {
             isPlaying = false;
+            _hideAudioStop();
             // Auto-restart mic after TTS finishes if message was voice-initiated
             if (_voiceInitiated && document.getElementById('ttsToggle').checked) {
                 _voiceInitiated = false;
@@ -5215,5 +5267,6 @@
         <span>Copyright &copy; 2026 twinology.ai</span>
         <span class="footer-version" id="footerVersion">v2.10.0 — Multimodal RAG Edition</span>
     </footer>
+    <button id="audioStopBtn" title="Stop audio">⏹</button>
 </body>
 </html>
