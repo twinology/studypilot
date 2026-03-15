@@ -1528,6 +1528,7 @@ _local_whisper_model = None
 _local_whisper_lock = None
 _local_whisper_loading = False   # True while model is being loaded
 _local_whisper_model_name = None  # Currently loaded model name
+_local_whisper_vram_mb = None    # VRAM used by model (measured)
 
 # Validated Whisper model options per device type
 WHISPER_MODEL_OPTIONS = {
@@ -1546,6 +1547,21 @@ WHISPER_MODEL_OPTIONS = {
         {"value": "large-v3",  "label": "Large V3 (⚠️ zeer zwaar voor CPU, ~10 GB RAM)", "ram": "~10 GB", "speed": "~20-40s"},
     ],
 }
+
+
+def _get_gpu_vram_used_mb() -> float | None:
+    """Get current GPU VRAM usage in MB via nvidia-smi."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return float(result.stdout.strip().split("\n")[0])
+    except Exception:
+        pass
+    return None
 
 
 def _detect_cuda_available() -> bool:
@@ -1586,9 +1602,19 @@ def _get_local_whisper_model(model_name: str = None):
             from faster_whisper import WhisperModel
             device, compute_type = _get_whisper_device_and_compute()
             logger.info(f"Lokaal Whisper model laden: {model_name} ({device}/{compute_type})...")
+            # Measure VRAM before/after loading
+            vram_before = _get_gpu_vram_used_mb() if device == "cuda" else None
             _local_whisper_model = WhisperModel(model_name, device=device, compute_type=compute_type)
             _local_whisper_model_name = model_name
-            logger.info(f"Lokaal Whisper model geladen: {model_name} op {device}")
+            if device == "cuda" and vram_before is not None:
+                vram_after = _get_gpu_vram_used_mb()
+                if vram_after is not None:
+                    _local_whisper_vram_mb = round(vram_after - vram_before)
+                    logger.info(f"Lokaal Whisper model geladen: {model_name} op {device} ({_local_whisper_vram_mb} MB VRAM)")
+                else:
+                    logger.info(f"Lokaal Whisper model geladen: {model_name} op {device}")
+            else:
+                logger.info(f"Lokaal Whisper model geladen: {model_name} op {device}")
         finally:
             _local_whisper_loading = False
         return _local_whisper_model
@@ -1694,6 +1720,7 @@ async def stt_status():
         "model_loaded": _local_whisper_model is not None,
         "model_loading": _local_whisper_loading,
         "loaded_model_name": _local_whisper_model_name,
+        "vram_mb": _local_whisper_vram_mb,
     }
 
 

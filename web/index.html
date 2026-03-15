@@ -4856,7 +4856,8 @@
             if (s.model_loading) {
                 el2.innerHTML = '<span style="color:var(--warning)">⏳ Model wordt geladen...</span>';
             } else if (s.model_loaded) {
-                el2.innerHTML = '<span style="color:var(--success)">✅ Model <strong>' + s.loaded_model_name + '</strong> geladen en klaar</span>';
+                var vramInfo = s.vram_mb ? ' — ' + (s.vram_mb >= 1024 ? (s.vram_mb / 1024).toFixed(1) + ' GB' : s.vram_mb + ' MB') + ' VRAM' : '';
+                el2.innerHTML = '<span style="color:var(--success)">✅ Model <strong>' + s.loaded_model_name + '</strong> geladen en klaar' + vramInfo + '</span>';
                 // Stop polling — model is loaded
                 if (_whisperPollTimer) { clearInterval(_whisperPollTimer); _whisperPollTimer = null; }
             } else {
