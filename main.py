@@ -2315,6 +2315,201 @@ async def get_settings():
     }
 
 
+@app.get("/api/settings/verify")
+async def verify_all_keys():
+    """Test ALL configured API keys and return status for each."""
+    s = load_settings()
+    results = {}
+    timeout = 5.0
+
+    # ── AI provider ──────────────────────────────────────────────────
+    provider = s.get("provider", "anthropic")
+    ai_key = s.get("ai_api_key", "")
+    or_key = s.get("openrouter_api_key", "")
+    ollama_url = s.get("ollama_base_url", "http://localhost:11434")
+
+    async def verify_ai_provider():
+        try:
+            if provider == "anthropic":
+                if not ai_key:
+                    return {"status": "not_configured", "message": "Geen Anthropic key ingesteld"}
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.get(
+                        "https://api.anthropic.com/v1/models",
+                        headers={
+                            "x-api-key": ai_key,
+                            "anthropic-version": "2023-06-01",
+                        },
+                    )
+                if resp.status_code == 200:
+                    return {"status": "ok", "message": "Anthropic API key is geldig"}
+                elif resp.status_code == 401:
+                    return {"status": "error", "message": "Ongeldige Anthropic API key"}
+                else:
+                    return {"status": "error", "message": f"Anthropic API fout (HTTP {resp.status_code})"}
+
+            elif provider == "openai":
+                if not ai_key:
+                    return {"status": "not_configured", "message": "Geen OpenAI key ingesteld"}
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.get(
+                        "https://api.openai.com/v1/models",
+                        headers={"Authorization": f"Bearer {ai_key}"},
+                    )
+                if resp.status_code == 200:
+                    return {"status": "ok", "message": "OpenAI API key is geldig"}
+                elif resp.status_code == 401:
+                    return {"status": "error", "message": "Ongeldige OpenAI API key"}
+                else:
+                    return {"status": "error", "message": f"OpenAI API fout (HTTP {resp.status_code})"}
+
+            elif provider == "openrouter":
+                if not or_key:
+                    return {"status": "not_configured", "message": "Geen OpenRouter key ingesteld"}
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.get(
+                        "https://openrouter.ai/api/v1/models",
+                        headers={"Authorization": f"Bearer {or_key}"},
+                    )
+                if resp.status_code == 200:
+                    return {"status": "ok", "message": "OpenRouter API key is geldig"}
+                elif resp.status_code == 401:
+                    return {"status": "error", "message": "Ongeldige OpenRouter key"}
+                else:
+                    return {"status": "error", "message": f"OpenRouter API fout (HTTP {resp.status_code})"}
+
+            elif provider == "ollama":
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.get(f"{ollama_url}/api/tags")
+                if resp.status_code == 200:
+                    return {"status": "ok", "message": "Ollama is bereikbaar"}
+                else:
+                    return {"status": "error", "message": f"Ollama fout (HTTP {resp.status_code})"}
+
+            else:
+                return {"status": "error", "message": f"Onbekende provider: {provider}"}
+        except httpx.TimeoutException:
+            return {"status": "error", "message": "Timeout bij verbinden met AI provider"}
+        except httpx.ConnectError:
+            target = "Ollama" if provider == "ollama" else "AI provider"
+            return {"status": "error", "message": f"Kan niet verbinden met {target}"}
+        except Exception as e:
+            return {"status": "error", "message": f"Fout: {str(e)[:100]}"}
+
+    # ── ElevenLabs ───────────────────────────────────────────────────
+    el_key = s.get("elevenlabs_api_key", "")
+
+    async def verify_elevenlabs():
+        if not el_key:
+            return {"status": "not_configured", "message": "Niet ingesteld"}
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.get(
+                    "https://api.elevenlabs.io/v1/user",
+                    headers={"xi-api-key": el_key},
+                )
+            if resp.status_code == 200:
+                return {"status": "ok", "message": "ElevenLabs key is geldig"}
+            elif resp.status_code == 401:
+                return {"status": "error", "message": "Ongeldige ElevenLabs key"}
+            else:
+                return {"status": "error", "message": f"ElevenLabs fout (HTTP {resp.status_code})"}
+        except httpx.TimeoutException:
+            return {"status": "error", "message": "Timeout bij ElevenLabs"}
+        except Exception as e:
+            return {"status": "error", "message": f"Fout: {str(e)[:100]}"}
+
+    # ── Tavily ───────────────────────────────────────────────────────
+    tavily_key = s.get("tavily_api_key", "")
+
+    async def verify_tavily():
+        if not tavily_key:
+            return {"status": "not_configured", "message": "Niet ingesteld"}
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(
+                    "https://api.tavily.com/search",
+                    json={"api_key": tavily_key, "query": "test", "max_results": 1},
+                )
+            if resp.status_code == 200:
+                return {"status": "ok", "message": "Tavily key is geldig"}
+            elif resp.status_code == 401 or resp.status_code == 403:
+                return {"status": "error", "message": "Ongeldige Tavily key"}
+            else:
+                return {"status": "error", "message": f"Tavily fout (HTTP {resp.status_code})"}
+        except httpx.TimeoutException:
+            return {"status": "error", "message": "Timeout bij Tavily"}
+        except Exception as e:
+            return {"status": "error", "message": f"Fout: {str(e)[:100]}"}
+
+    # ── OpenAI Whisper STT ───────────────────────────────────────────
+    stt_provider = s.get("stt_provider", "browser")
+    stt_key = s.get("openai_stt_key", "")
+
+    async def verify_openai_stt():
+        if stt_provider == "browser":
+            return {"status": "not_configured", "message": "Browser STT — geen key nodig"}
+        if stt_provider == "local_whisper":
+            try:
+                import faster_whisper  # noqa: F401
+                return {"status": "ok", "message": "faster-whisper is beschikbaar"}
+            except ImportError:
+                return {"status": "error", "message": "faster-whisper niet geïnstalleerd"}
+        if stt_provider == "openai_whisper":
+            if not stt_key:
+                return {"status": "not_configured", "message": "Geen OpenAI STT key ingesteld"}
+            try:
+                import struct
+                import openai
+                client = openai.OpenAI(api_key=stt_key, timeout=timeout)
+                sample_rate = 16000
+                num_samples = 1600
+                data_size = num_samples * 2
+                wav = io.BytesIO()
+                wav.write(b'RIFF')
+                wav.write(struct.pack('<I', 36 + data_size))
+                wav.write(b'WAVE')
+                wav.write(b'fmt ')
+                wav.write(struct.pack('<IHHIIHH', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16))
+                wav.write(b'data')
+                wav.write(struct.pack('<I', data_size))
+                wav.write(b'\x00' * data_size)
+                wav.seek(0)
+                wav.name = "verify.wav"
+                # Run synchronous OpenAI call in thread pool
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None,
+                    lambda: client.audio.transcriptions.create(model="whisper-1", file=wav, language="nl"),
+                )
+                return {"status": "ok", "message": "OpenAI Whisper key is geldig"}
+            except Exception as e:
+                err = str(e)
+                if "401" in err or "Incorrect API key" in err:
+                    return {"status": "error", "message": "Ongeldige OpenAI STT key"}
+                if "insufficient_quota" in err:
+                    return {"status": "error", "message": "Geen tegoed op OpenAI account"}
+                return {"status": "error", "message": f"STT fout: {err[:100]}"}
+        return {"status": "not_configured", "message": f"STT provider: {stt_provider}"}
+
+    # Run all verifications concurrently
+    ai_result, el_result, tavily_result, stt_result = await asyncio.gather(
+        verify_ai_provider(),
+        verify_elevenlabs(),
+        verify_tavily(),
+        verify_openai_stt(),
+    )
+
+    logger.info(f"API key verificatie: ai={ai_result['status']}, elevenlabs={el_result['status']}, tavily={tavily_result['status']}, stt={stt_result['status']}")
+
+    return {
+        "ai_provider": ai_result,
+        "elevenlabs": el_result,
+        "tavily": tavily_result,
+        "openai_stt": stt_result,
+    }
+
+
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest):
     """Save provider, model, and API keys."""

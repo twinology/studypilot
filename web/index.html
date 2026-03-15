@@ -4388,8 +4388,117 @@
             if (!data.configured) {
                 switchToSetup();
             }
+            // Auto-verify all API keys
+            verifyAllKeys();
+
         } catch (err) {
             console.warn('Kon settings niet laden:', err);
+        }
+    }
+
+    async function verifyAllKeys() {
+        // Show loading indicators
+        const statusMap = {
+            ai_provider: [document.getElementById('aiKeyStatus'), document.getElementById('orKeyStatus')],
+            elevenlabs: [document.getElementById('elKeyStatus')],
+            tavily: [document.getElementById('tavilyKeyStatus')],
+            openai_stt: [document.getElementById('sttKeyStatus')],
+        };
+        // Set all to loading
+        Object.values(statusMap).flat().forEach(el => {
+            if (el) {
+                el.textContent = '\u23F3 Controleren...';
+                el.className = 'setup-status';
+                el.style.color = '#888';
+            }
+        });
+
+        try {
+            const res = await fetch(`${API}/api/settings/verify`);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // AI provider status — show on active provider's status span
+            const aiStatus = data.ai_provider || {};
+            const activeProviderStatus = (currentProvider === 'openrouter')
+                ? document.getElementById('orKeyStatus')
+                : document.getElementById('aiKeyStatus');
+            if (activeProviderStatus) {
+                if (aiStatus.status === 'ok') {
+                    activeProviderStatus.textContent = '\u2705 Verbonden';
+                    activeProviderStatus.className = 'setup-status ok';
+                    activeProviderStatus.style.color = '';
+                } else if (aiStatus.status === 'error') {
+                    activeProviderStatus.textContent = '\u274C ' + aiStatus.message;
+                    activeProviderStatus.className = 'setup-status missing';
+                    activeProviderStatus.style.color = '';
+                } else {
+                    activeProviderStatus.textContent = 'Niet ingesteld';
+                    activeProviderStatus.className = 'setup-status';
+                    activeProviderStatus.style.color = '#888';
+                }
+            }
+            // Clear non-active AI provider status
+            const inactiveStatus = (currentProvider === 'openrouter')
+                ? document.getElementById('aiKeyStatus')
+                : document.getElementById('orKeyStatus');
+            if (inactiveStatus) {
+                inactiveStatus.textContent = '';
+                inactiveStatus.style.color = '';
+            }
+
+            // ElevenLabs status
+            const elStatus = data.elevenlabs || {};
+            const elEl = document.getElementById('elKeyStatus');
+            if (elEl) {
+                if (elStatus.status === 'ok') {
+                    elEl.textContent = '\u2705 Verbonden';
+                    elEl.className = 'setup-status ok';
+                } else if (elStatus.status === 'error') {
+                    elEl.textContent = '\u274C ' + elStatus.message;
+                    elEl.className = 'setup-status missing';
+                } else {
+                    elEl.textContent = 'Niet ingesteld';
+                    elEl.className = 'setup-status';
+                }
+                elEl.style.color = '';
+            }
+
+            // Tavily status
+            const tavStatus = data.tavily || {};
+            const tavEl = document.getElementById('tavilyKeyStatus');
+            if (tavEl) {
+                if (tavStatus.status === 'ok') {
+                    tavEl.textContent = '\u2705 Verbonden';
+                    tavEl.className = 'setup-status ok';
+                } else if (tavStatus.status === 'error') {
+                    tavEl.textContent = '\u274C ' + tavStatus.message;
+                    tavEl.className = 'setup-status missing';
+                } else {
+                    tavEl.textContent = 'Niet ingesteld';
+                    tavEl.className = 'setup-status';
+                }
+                tavEl.style.color = '';
+            }
+
+            // STT status
+            const sttStatus = data.openai_stt || {};
+            const sttEl = document.getElementById('sttKeyStatus');
+            if (sttEl) {
+                if (sttStatus.status === 'ok') {
+                    sttEl.textContent = '\u2705 Verbonden';
+                    sttEl.className = 'setup-status ok';
+                } else if (sttStatus.status === 'error') {
+                    sttEl.textContent = '\u274C ' + sttStatus.message;
+                    sttEl.className = 'setup-status missing';
+                } else {
+                    sttEl.textContent = 'Niet ingesteld';
+                    sttEl.className = 'setup-status';
+                }
+                sttEl.style.color = '';
+            }
+        } catch (err) {
+            console.warn('API key verificatie mislukt:', err);
         }
     }
 
@@ -4422,31 +4531,7 @@
                 '<label for="setupOpenAiSttKey">OpenAI API Key (voor Whisper STT) <span class="setup-status" id="sttKeyStatus"></span></label>' +
                 '<input type="password" id="setupOpenAiSttKey" placeholder="sk-...">' +
                 '<div class="field-hint">Aparte key voor spraakherkenning. Verkrijgbaar via <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--primary)">platform.openai.com</a></div>' +
-                '<button class="btn btn-secondary btn-sm" id="sttVerifyBtn" style="margin-top:6px">🔍 Controleer verbinding</button>' +
-                ' <span id="sttVerifyResult" style="font-size:12px"></span>' +
                 '</div>';
-            setTimeout(function() {
-                var verifyBtn = document.getElementById('sttVerifyBtn');
-                if (verifyBtn) verifyBtn.addEventListener('click', async function() {
-                    verifyBtn.disabled = true;
-                    verifyBtn.textContent = 'Controleren...';
-                    var resultEl = document.getElementById('sttVerifyResult');
-                    resultEl.textContent = '';
-                    try {
-                        var res = await fetch(API + '/api/stt/verify');
-                        var data = await res.json();
-                        if (data.status === 'ok') {
-                            resultEl.innerHTML = '<span style="color:var(--success)">✅ ' + data.message + '</span>';
-                        } else {
-                            resultEl.innerHTML = '<span style="color:var(--danger)">❌ ' + data.message + '</span>';
-                        }
-                    } catch (err) {
-                        resultEl.innerHTML = '<span style="color:var(--danger)">❌ Kan server niet bereiken</span>';
-                    }
-                    verifyBtn.disabled = false;
-                    verifyBtn.textContent = '🔍 Controleer verbinding';
-                });
-            }, 50);
             hint.textContent = 'OpenAI Whisper: uitstekende Nederlandse spraakherkenning via cloud API (~$0.006/min).';
         } else if (currentSttProvider === 'local_whisper') {
             area.innerHTML = '<div class="field-hint" id="localWhisperStatus" style="margin-top:8px">⏳ Controle of faster-whisper geïnstalleerd is...</div>';
