@@ -723,6 +723,7 @@
             line-height: 1.4;
         }
         .input-bar textarea:focus { border-color: var(--primary); }
+        .input-bar .mic-btn { width: 40px; height: 40px; font-size: 18px; flex-shrink: 0; }
 
         /* ── Buttons ────────────────────────────── */
         .btn {
@@ -1480,10 +1481,12 @@
                 <div class="message bot">Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model.<br>Of geef een onderwerp in, ik help je graag!</div>
             </div>
             <div class="input-bar">
+                <button class="mic-btn inactive" id="chatMicBtn" title="Spraakherkenning">&#127908;</button>
                 <textarea id="chatInput" placeholder="Stel een vraag, formuleer een antwoord of geef een onderwerp in ..." rows="1" autocomplete="off"></textarea>
                 <button class="btn btn-primary" id="chatSend">Verstuur</button>
                 <button class="btn btn-warning btn-sm" id="chatCloseBtn" title="Chat opslaan en afsluiten">Afsluiten</button>
             </div>
+            <div id="chatVoiceStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:2px;display:none"></div>
             <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:2px"><b>Shift+Enter</b> voor nieuwe regel, <b>Enter</b> om te versturen</div>
         </div>
 
@@ -2910,6 +2913,146 @@
     });
     chatInput.addEventListener('input', autoResize);
 
+    // Chat mic button
+    const chatMicBtn = document.getElementById('chatMicBtn');
+    const chatVoiceStatus = document.getElementById('chatVoiceStatus');
+    let chatRecording = false;
+    let chatMediaRecorder = null;
+    let chatAudioChunks = [];
+    let chatRecognition = null;
+
+    // Init browser speech recognition for chat
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        chatRecognition = new SR();
+        chatRecognition.lang = 'nl-NL';
+        chatRecognition.continuous = true;
+        chatRecognition.interimResults = true;
+
+        chatRecognition.onresult = function(event) {
+            var transcript = '';
+            var isFinal = false;
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+                if (event.results[i].isFinal) isFinal = true;
+            }
+            chatInput.value = transcript;
+            chatVoiceStatus.style.display = '';
+            chatVoiceStatus.textContent = 'Herkend: "' + transcript + '"';
+            if (isFinal) {
+                chatRecording = false;
+                chatRecognition.stop();
+                chatMicBtn.classList.remove('recording');
+                chatMicBtn.classList.add('inactive');
+                chatVoiceStatus.textContent = 'Spraak herkend. Wordt verstuurd...';
+                setTimeout(function() { sendChat(); chatVoiceStatus.style.display = 'none'; }, 300);
+            }
+        };
+        chatRecognition.onend = function() {
+            if (chatRecording) {
+                try { chatRecognition.start(); } catch(e) {
+                    chatRecording = false;
+                    chatMicBtn.classList.remove('recording');
+                    chatMicBtn.classList.add('inactive');
+                }
+                return;
+            }
+            chatMicBtn.classList.remove('recording');
+            chatMicBtn.classList.add('inactive');
+        };
+        chatRecognition.onerror = function(event) {
+            if (event.error === 'no-speech' && chatRecording) return;
+            if (event.error === 'aborted') return;
+            chatRecording = false;
+            chatMicBtn.classList.remove('recording');
+            chatMicBtn.classList.add('inactive');
+            chatVoiceStatus.style.display = '';
+            chatVoiceStatus.textContent = 'Spraakherkenning fout: ' + event.error;
+        };
+    }
+
+    chatMicBtn.addEventListener('click', async function() {
+        if (chatRecording) {
+            chatRecording = false;
+            if (currentSttProvider === 'browser' && chatRecognition) {
+                chatRecognition.stop();
+            } else if (chatMediaRecorder && chatMediaRecorder.state !== 'inactive') {
+                chatVoiceStatus.style.display = '';
+                chatVoiceStatus.textContent = '⏳ Transcriberen...';
+                chatMediaRecorder.stop();
+            }
+            chatMicBtn.classList.remove('recording');
+            chatMicBtn.classList.add('inactive');
+            return;
+        }
+
+        var hasPermission = await ensureMicPermission();
+        if (!hasPermission) return;
+
+        if (currentSttProvider === 'browser') {
+            if (!chatRecognition) {
+                showStatus('Spraakherkenning niet ondersteund. Kies Whisper in Setup.', 'error');
+                return;
+            }
+            try {
+                chatRecognition.start();
+                chatRecording = true;
+                chatMicBtn.classList.remove('inactive');
+                chatMicBtn.classList.add('recording');
+                chatVoiceStatus.style.display = '';
+                chatVoiceStatus.textContent = 'Luisteren... Spreek nu.';
+            } catch(e) {
+                chatRecognition.abort();
+                setTimeout(function() {
+                    try { chatRecognition.start(); chatRecording = true; chatMicBtn.classList.remove('inactive'); chatMicBtn.classList.add('recording'); } catch(e2) {}
+                }, 200);
+            }
+        } else {
+            // Whisper mode: MediaRecorder
+            try {
+                var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                var mimeType = 'audio/webm;codecs=opus';
+                if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/webm';
+                if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/mp4';
+                chatMediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+                chatAudioChunks = [];
+                chatMediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) chatAudioChunks.push(e.data); };
+                chatMediaRecorder.onstop = async function() {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    if (chatAudioChunks.length === 0) return;
+                    var blob = new Blob(chatAudioChunks, { type: mimeType });
+                    chatVoiceStatus.style.display = '';
+                    chatVoiceStatus.textContent = '⏳ Transcriberen...';
+                    var formData = new FormData();
+                    formData.append('audio', blob, 'recording.webm');
+                    try {
+                        var res = await fetch(API + '/api/stt', { method: 'POST', body: formData });
+                        if (!res.ok) { var err = {}; try { err = await res.json(); } catch(e) {} throw new Error(err.detail || 'STT fout'); }
+                        var data = await res.json();
+                        if (data.text) {
+                            chatInput.value = data.text;
+                            chatVoiceStatus.textContent = 'Spraak herkend. Wordt verstuurd...';
+                            setTimeout(function() { sendChat(); chatVoiceStatus.style.display = 'none'; }, 300);
+                        } else {
+                            chatVoiceStatus.textContent = 'Geen spraak herkend.';
+                        }
+                    } catch(err) {
+                        chatVoiceStatus.textContent = 'STT fout: ' + err.message;
+                    }
+                };
+                chatMediaRecorder.start();
+                chatRecording = true;
+                chatMicBtn.classList.remove('inactive');
+                chatMicBtn.classList.add('recording');
+                chatVoiceStatus.style.display = '';
+                chatVoiceStatus.textContent = '🔴 Opname... Klik nogmaals om te stoppen.';
+            } catch(err) {
+                chatVoiceStatus.style.display = '';
+                chatVoiceStatus.textContent = '⚠️ Kon microfoon niet openen: ' + err.message;
+            }
+        }
+    });
+
     function autoResize() {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 150) + 'px';
@@ -2928,6 +3071,7 @@
             showStatus(`Chat opgeslagen (${data.message_count} berichten)`, 'success');
             // Clear chat UI
             chatMessages.innerHTML = '<div class="message bot">Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model.<br>Of geef een onderwerp in, ik help je graag!</div>';
+            _addSpeakButton(chatMessages.querySelector('.message.bot'), 'Hallo, ik ben StudyPilot. Upload eerst documenten in de Kennisbank en stel me dan je vragen of zet de kennisbank uit en stel vragen aan het AI-model.\nOf geef een onderwerp in, ik help je graag!');
         } catch (err) {
             showStatus(`${err.message}`, 'error');
         }
@@ -2992,8 +3136,8 @@
         if (type === 'bot') {
             div.innerHTML = markdownToHtml(text);
 
-            // Speak button — only in session (Gesprekssimulatie), not in Chat
-            if (container === sessionMessages) {
+            // Speak button — on all bot messages (Chat + Gesprekssimulatie)
+            {
                 const speakBtn = document.createElement('button');
                 speakBtn.className = 'speak-btn';
                 speakBtn.innerHTML = '<span class="speak-icon">&#128264;</span> Afspelen';
@@ -3030,6 +3174,32 @@
         }
         container.appendChild(div);
         container.scrollTop = container.scrollHeight;
+    }
+
+    // Helper: add a speak button to any message element
+    function _addSpeakButton(el, text) {
+        if (!el) return;
+        var speakBtn = document.createElement('button');
+        speakBtn.className = 'speak-btn';
+        speakBtn.innerHTML = '<span class="speak-icon">&#128264;</span> Afspelen';
+        speakBtn.title = 'Lees dit bericht voor';
+        speakBtn.addEventListener('click', function() {
+            sharedAudio.pause();
+            speechSynthesis.cancel();
+            audioQueue.length = 0;
+            isPlaying = false;
+            speakBtn.classList.add('playing');
+            speakBtn.innerHTML = '<span class="speak-icon">&#128266;</span> Bezig...';
+            var checkDone = setInterval(function() {
+                if (!isPlaying && audioQueue.length === 0) {
+                    clearInterval(checkDone);
+                    speakBtn.classList.remove('playing');
+                    speakBtn.innerHTML = '<span class="speak-icon">&#128264;</span> Afspelen';
+                }
+            }, 500);
+            speak(text);
+        });
+        el.appendChild(speakBtn);
     }
 
     function appendImagesToLastMessage(container, images) {
@@ -4373,6 +4543,7 @@
             const firstMsg = chatMessages.querySelector('.message.bot:first-child');
             if (firstMsg && chatMessages.children.length === 1) {
                 firstMsg.innerHTML = welcomeGreeting;
+                _addSpeakButton(firstMsg, welcomeGreeting.replace(/<br>/g, '\n'));
             }
 
             // Update model hint in nav
