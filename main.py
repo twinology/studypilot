@@ -1583,7 +1583,7 @@ def _get_whisper_device_and_compute():
 
 def _get_local_whisper_model(model_name: str = None):
     """Load faster-whisper model (singleton). Reloads if model_name changed."""
-    global _local_whisper_model, _local_whisper_lock, _local_whisper_loading, _local_whisper_model_name
+    global _local_whisper_model, _local_whisper_lock, _local_whisper_loading, _local_whisper_model_name, _local_whisper_vram_mb
     import threading
     if _local_whisper_lock is None:
         _local_whisper_lock = threading.Lock()
